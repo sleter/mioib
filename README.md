@@ -1,4 +1,4 @@
 Run utils.cpp using:
 ```
-g++ utils.cpp && ./a.out
+g++ utils.cpp -O3 && ./a.out
 ```

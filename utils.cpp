@@ -25,8 +25,12 @@ class Generator {
 public:
     Generator(size_t n){
         vec = std::vector<int>(n);
+        reset();
+    }
+
+    void reset(){
         std::iota(vec.begin(), vec.end(), 0);
-        new_size = n-1;
+        new_size = vec.size() - 1;
     }
 
     bool has_next(){
@@ -34,30 +38,30 @@ public:
     }
 
     std::vector<int> next(){
-        auto result = std::vector<int>(vec);
-        if(new_size > 0){
+        if(new_size > 0 && new_size < vec.size()-1){
             std::swap(vec[random_index(0, new_size-1)], vec[new_size]);
         }
         --new_size;
-        return result;
+        return vec;
     }
 };
 
 
 int main(){
 
-    // auto g = Generator(10);
+    // auto g = Generator(5);
     // while (g.has_next())
     // {
     //     print(g.next());
     // }
     
-
+    Generator g(5000);
     long total_time = 0;
     int iters = 500;
     for(int i=0; i<iters; i++){
+        g.reset();
         auto start_time = std::chrono::high_resolution_clock::now();
-        auto g = Generator(5000);
+        
         while (g.has_next()){
             g.next();
         }
