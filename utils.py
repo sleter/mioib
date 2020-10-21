@@ -21,7 +21,7 @@ def timing2(f):
             result = f(*args, **kw)
             iter_ += 1
             t = timer()
-            if t-start < 1000:
+            if t-start > 10:
                 break
         return result, (t-start)/iter_
     return wrapper
@@ -37,11 +37,12 @@ def better_random(n):
 
 
 if __name__ == '__main__':
-    iters = [better_random(1000) for _ in range(500)]
+    iters = [better_random(1000) for _ in range(5)]
     # Display one permutation
     # print(iters[0][0])
     # Display average times
-    print(statistics.mean([i[1] for i in iters]))
+    millis = statistics.mean([i[1] for i in iters])*1000
+    print("{:.2f} ms".format(millis))
 
 # Avg timings | permutation size = 1000, iterations 500
 # basic - 0.00267

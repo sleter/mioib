@@ -3,7 +3,8 @@
 #include<numeric>
 #include<algorithm>
 #include<random>
-#include <chrono>
+#include<chrono>
+#include<functional>
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -37,7 +38,7 @@ public:
         return new_size >= 0;
     }
 
-    std::vector<int> next(){
+    std::vector<int>& next(){
         if(new_size > 0 && new_size < vec.size()-1){
             std::swap(vec[random_index(0, new_size-1)], vec[new_size]);
         }
@@ -46,6 +47,32 @@ public:
     }
 };
 
+std::chrono::high_resolution_clock::time_point now(){
+    return std::chrono::high_resolution_clock::now();
+}
+
+int64_t as_milliseconds(std::chrono::nanoseconds time){
+    return std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
+}
+
+int64_t measure_time(std::function<void()> f, long limit_ms){
+    auto start_time = now();
+    uint32_t iteration = 0;
+    do
+    {
+        f();
+        ++iteration;
+        // std::cout << as_milliseconds(now() - start_time) << std::endl;
+    } while (as_milliseconds(now() - start_time) < limit_ms);
+    return as_milliseconds(now() - start_time) / (int64_t)iteration;
+}
+
+void test_function(){
+    Generator g(5000);
+    while (g.has_next()){
+        g.next();
+    }
+}
 
 int main(){
 
@@ -55,21 +82,11 @@ int main(){
     //     print(g.next());
     // }
     
-    Generator g(5000);
     long total_time = 0;
-    int iters = 500;
+    int iters = 100;
     for(int i=0; i<iters; i++){
-        g.reset();
-        auto start_time = std::chrono::high_resolution_clock::now();
-        
-        while (g.has_next()){
-            g.next();
-        }
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto time = end_time - start_time;
-        total_time += std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
+        total_time += measure_time(test_function, 100);
     }
-
     // 5.048 ms for vector of 5000 and 500 iters 
     std::cout << (double)total_time/iters << " ms" << std::endl;
     return 0;
