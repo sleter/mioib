@@ -133,6 +133,16 @@ void shuffle(std::vector<T> &v)
     }
 }
 
+template <typename T>
+void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
+{
+    while(to > from){
+        std::swap(v[from], v[to]);
+        ++from;
+        --to;
+    }
+}
+
 std::chrono::high_resolution_clock::time_point now()
 {
     return std::chrono::high_resolution_clock::now();
@@ -172,12 +182,10 @@ int main(int argc, char *argv[])
 
     std::string path(argv[1]);
     auto v = parse_file(path);
-
     auto m = compute_distance_matrix(v);
 
     print_matrix(m);
 
-    // print(v);
     // auto v = parse_file("/home/bartek/Repos/mioib/tsplib/EUC_2D/pr2392.tsp");
     // print(v);
 
