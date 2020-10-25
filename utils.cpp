@@ -9,6 +9,7 @@
 #include <string>
 #include <regex>
 #include <memory>
+#include <math.h>
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -23,7 +24,7 @@ struct coords
 {
     int x, y;
 
-    coords(int x, int y) : x(x), y(y){}
+    coords(int x, int y) : x(x), y(y) {}
 
     friend std::ostream &operator<<(std::ostream &ostream, const coords &c)
     {
@@ -31,6 +32,15 @@ struct coords
         return ostream;
     }
 };
+
+float euclidean_distance(const coords &from, const coords &to)
+{
+    int dx = from.x - to.x;
+    int dy = from.y - to.y;
+
+    float distance = float(dx * dx) + float(dy * dy);
+    return sqrt(distance);
+}
 
 // Uses return value optimization (RVO), no copy
 std::vector<coords> parse_file(const std::string &path)
@@ -74,12 +84,41 @@ std::vector<coords> parse_file(const std::string &path)
     return vec;
 }
 
+std::vector<std::vector<float>> compute_distance_matrix(const std::vector<coords> &v)
+{
+    auto matrix = std::vector<std::vector<float>>(v.size());
+    for (auto &row : matrix)
+        row.resize(v.size());
+
+    for (size_t i = 0; i < v.size(); ++i)
+    {
+        for (size_t j = i+1; j < v.size(); ++j)
+        {
+            float distance = euclidean_distance(v[i], v[j]);
+            matrix[i][j] = distance;
+            matrix[j][i] = distance;
+        }
+    }
+
+    return matrix;
+}
+
 template <typename T>
 void print(const std::vector<T> &vec)
 {
     for (auto &i : vec)
     {
         std::cout << i << " ";
+    }
+    std::cout << std::endl;
+}
+
+template <typename T>
+void print_matrix(const std::vector<std::vector<T>> &mat)
+{
+    for (auto &row : mat)
+    {
+        print(row);
     }
     std::cout << std::endl;
 }
@@ -125,15 +164,20 @@ void test_function()
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2){
+    if (argc != 2)
+    {
         std::cout << "Usage: " << argv[0] << " <file>.tsp" << '\n';
-        return 0; 
+        return 0;
     }
 
     std::string path(argv[1]);
     auto v = parse_file(path);
-    
-    print(v);
+
+    auto m = compute_distance_matrix(v);
+
+    print_matrix(m);
+
+    // print(v);
     // auto v = parse_file("/home/bartek/Repos/mioib/tsplib/EUC_2D/pr2392.tsp");
     // print(v);
 
