@@ -1,6 +1,7 @@
 .vscode/
 tsplib/
 output.txt
+utils
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

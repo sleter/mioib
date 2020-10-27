@@ -1,3 +1,5 @@
+#!/bin/bash
+
 mkdir -p tsplib
 cd tsplib
 
