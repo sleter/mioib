@@ -74,7 +74,7 @@ float euclidean_distance(const coords &from, const coords &to)
     int dy = from.y - to.y;
 
     float distance = float(dx * dx) + float(dy * dy);
-    return sqrt(distance);
+    return round(sqrt(distance));
 }
 
 // Uses return value optimization (RVO), no copy
@@ -463,7 +463,7 @@ const std::pair<float, std::vector<int>> optimal_tour(const cost_matrix &mat, st
         while (file >> node)
         {
             if(node < 0) break;
-            vec.emplace_back(node);
+            vec.emplace_back(node-1);
         }
 
         file.close();
@@ -497,14 +497,14 @@ int main(int argc, char *argv[])
     const auto mat = cost_matrix(coords);
     auto v = random_vector(mat.mat.size());
 
-    // auto optimal = optimal_tour(mat, path);
-    // if(optimal.first < 0){
-    //     std::cout << "Cannot find optimal file for TSP " << path << '\n'; 
-    //     return -1;
-    // }
+    auto optimal = optimal_tour(mat, path);
+    if(optimal.first < 0){
+        std::cout << "Cannot find optimal file for TSP " << path << '\n'; 
+        return -1;
+    }
 
     auto problem = tsp(mat, n, limit_ms, print_path);
-    // problem.add_optimal_tour(optimal);
+    problem.add_optimal_tour(optimal);
 
     for (auto &optimizer : optimizers)
     {
