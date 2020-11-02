@@ -13,7 +13,7 @@
 #include <map>
 #include <list>
 
-std::default_random_engine rd {static_cast<long unsigned int>(time(0))};
+std::default_random_engine rd{static_cast<long unsigned int>(time(0))};
 std::mt19937 gen(rd());
 
 size_t random_index(size_t from, size_t to)
@@ -32,7 +32,8 @@ std::string as_string(const std::vector<T> &vec)
     }
 
     std::string result = os.str();
-    if(result.size() > 0) {
+    if (result.size() > 0)
+    {
         result.pop_back();
     }
     return result;
@@ -145,15 +146,10 @@ struct cost_matrix
     float compute_cost(std::vector<int> &v) const
     {
         float cost = mat[v[0]][v[v.size() - 1]];
-        // std::cout << "[" << v[v.size() - 1] << "," << v[0] << "]=" << mat[v[0]][v[v.size() - 1]] << " ";
-
         for (int i = 1; i < v.size(); ++i)
         {
-            // std::cout << "[" << v[i - 1] << "," << v[i] << "]=" << mat[v[i - 1]][v[i]] << " ";
             cost += mat[v[i - 1]][v[i]];
         }
-
-        // std::cout << '\n';
         return cost;
     }
 
@@ -167,20 +163,8 @@ struct cost_matrix
         if (y_succ >= v.size())
             y_succ = 0;
 
-        // std::cout << "xp=" << x_prev << ", ys=" << y_succ << '\n';
-        // std::cout << "v[x_prev]=" << v[x_prev] << ", v[x]=" << v[x] << ", v[y]=" << v[y] << ", v[y_succ]=" << v[y_succ] << '\n';
-
         float removed_cost = mat[v[x_prev]][v[x]] + mat[v[y]][v[y_succ]];
         float new_cost = mat[v[x_prev]][v[y]] + mat[v[x]][v[y_succ]];
-
-        // std::cout << "Possible cost (" << x << "," << y << ")" << '\n'
-        //           << "Remove = " << removed_cost << " | [" << v[x_prev] << "," << v[x] << "]=" << mat[v[x_prev]][v[x]]
-        //           << "; [" << v[y] << "," << v[y_succ] << "]=" << mat[v[y]][v[y_succ]]
-        //           << '\n'
-
-        //           << "New = " << new_cost << " | [" << v[x_prev] << "," << v[y] << "]=" << mat[v[x_prev]][v[y]]
-        //           << "; [" << v[x] << "," << v[y_succ] << "]=" << mat[v[x]][v[y_succ]]
-        //           << '\n';
 
         if (x_prev == y && x == y_succ)
             return cost_before;
@@ -334,24 +318,29 @@ class tsp
     std::list<size_t> loops;
     std::list<long> elapsed_time_ms;
     std::list<float> best_costs;
+    std::list<float> last_costs;
     std::list<std::vector<int>> best_paths;
 
     const cost_matrix mat;
     const size_t iterations;
     const long limit_ms;
+    const bool print_path;
 
-    void measure_time(const tsp_optimizer &optimizer, std::vector<int>& v)
+    void measure_time(const tsp_optimizer &optimizer, std::vector<int> &v)
     {
-        auto start_time = now();
         long elapsed = 0;
         uint32_t iteration = 0;
         float best_cost = MAXFLOAT;
-        
+        float last_cost = MAXFLOAT;
+
+        auto start_time = now();
+
         do
         {
             shuffle(v);
             float local_cost = mat.compute_cost(v);
             float next_cost = optimizer(mat, v, local_cost);
+            last_cost = next_cost;
 
             if (next_cost < best_cost)
             {
@@ -365,12 +354,13 @@ class tsp
         elapsed_time_ms.emplace_back(elapsed);
         loops.emplace_back(iteration);
         best_costs.emplace_back(best_cost);
+        last_costs.emplace_back(last_cost);
         optimizer_names.emplace_back(optimizer.name);
         best_paths.push_back(v);
     }
 
 public:
-    tsp(const cost_matrix &mat, size_t iterations, long limit_ms) : mat(mat), iterations(iterations), limit_ms(limit_ms) {}
+    tsp(const cost_matrix &mat, size_t iterations, long limit_ms, bool print_path) : mat(mat), iterations(iterations), limit_ms(limit_ms), print_path(print_path) {}
 
     void run(const tsp_optimizer &optimizer)
     {
@@ -379,26 +369,48 @@ public:
             std::vector<int> v(mat.mat.size());
             std::iota(v.begin(), v.end(), 0);
 
-            std::cout << "Run " << idx + 1 << '/' << iterations << '\n';
+            // std::cout << "Run " << idx + 1 << '/' << iterations << '\n';
             measure_time(optimizer, v);
         }
     }
 
-    void print_all()
-    {
-        auto name_it = optimizer_names.begin();
-        auto cost_it = best_costs.begin();
-        auto time_it = elapsed_time_ms.begin();
-        auto loop_it = loops.begin();
-        auto path_it = best_paths.begin();
+    void add_optimal_tour(std::pair<float, std::vector<int>>& optimal){
+        elapsed_time_ms.emplace_back(0);
+        loops.emplace_back(0);
+        best_costs.emplace_back(optimal.first);
+        last_costs.emplace_back(optimal.first);
+        optimizer_names.emplace_back("optimal");
+        best_paths.push_back(optimal.second);
+    }
 
-        std::cout << "optimizer_name,best_cost,elapsed_time_ms,loop_count\n";
-        while (name_it != optimizer_names.end() && cost_it != best_costs.end() && time_it != elapsed_time_ms.end() && loop_it != loops.end() && path_it != best_paths.end())
+    friend std::ostream &operator<<(std::ostream &ostream, const tsp &t)
+    {
+        auto name_it = t.optimizer_names.begin();
+        auto cost_it = t.best_costs.begin();
+        auto last_cost_it = t.last_costs.begin();
+        auto time_it = t.elapsed_time_ms.begin();
+        auto loop_it = t.loops.begin();
+        auto path_it = t.best_paths.begin();
+
+        ostream << "optimizer_name,best_cost,last_cost,elapsed_time_ms,loop_count";
+        if (t.print_path)
         {
-            std::cout << *name_it << ',' << *cost_it << ',' << *time_it << ',' << *loop_it << ',' << as_string(*path_it) << '\n';
+            ostream << ",best_path";
+        }
+        ostream << '\n';
+
+        while (name_it != t.optimizer_names.end() && cost_it != t.best_costs.end() && last_cost_it != t.last_costs.end() && time_it != t.elapsed_time_ms.end() && loop_it != t.loops.end() && path_it != t.best_paths.end())
+        {
+            ostream << *name_it << ',' << *cost_it << ',' << *last_cost_it << ',' << *time_it << ',' << *loop_it;
+            if (t.print_path)
+            {
+                ostream << ',' << as_string(*path_it);
+            }
+            ostream << '\n';
 
             ++name_it;
             ++cost_it;
+            ++last_cost_it;
             ++time_it;
             ++loop_it;
             ++path_it;
@@ -406,46 +418,104 @@ public:
     }
 };
 
+const std::string file_name(const std::string path)
+{
+    std::regex re("(.*/)?(\\w+)\\.tsp");
+    std::smatch matches;
+    std::regex_match(path, matches, re);
+    return std::string(matches[matches.size() - 1]);
+}
+
+const std::string output_path(const std::string intput_path, const long limit_ms)
+{
+    return "output/" + file_name(intput_path) + "_" + std::to_string(limit_ms) + ".csv";
+}
+
+const std::pair<float, std::vector<int>> optimal_tour(const cost_matrix &mat, std::string path)
+{
+    std::string opt_tour = ".opt.tour";
+    std::string optimal_solution_path = path;
+    optimal_solution_path.replace(optimal_solution_path.find(".tsp"), opt_tour.length(), opt_tour);
+
+    std::vector<int> vec;
+    std::ifstream file(optimal_solution_path);
+    if (!file.good())
+        return std::make_pair(-1, vec);
+
+    if (file.is_open())
+    {
+        std::string line;
+        int node;
+
+        std::regex re("^(\\w+)\\W*:\\W*(\\w+)$");
+        std::smatch matches;
+
+        while (std::getline(file, line))
+        {
+            // Reserve needed memory
+            if (std::regex_match(line, matches, re) && matches[1].compare("DIMENSION") == 0)
+                vec.reserve(std::stoi(matches[2]));
+
+            else if (line.compare("TOUR_SECTION") == 0)
+                break;
+        }
+
+        while (file >> node)
+        {
+            if(node < 0) break;
+            vec.emplace_back(node);
+        }
+
+        file.close();
+
+        float cost = mat.compute_cost(vec);
+        return std::make_pair(cost, vec);
+    }
+    else {
+        return std::make_pair(-1, vec);
+    }
+}
+
 int main(int argc, char *argv[])
 {
-    if (argc != 3)
+    if (argc != 5)
     {
-        std::cout << "Usage: " << argv[0] << " <file>.tsp <n>" << '\n';
+        std::cout << "Usage: " << argv[0] << " <file>.tsp <iterations> <time> <print_path>" << '\n';
         return 0;
     }
 
     std::string path(argv[1]);
     size_t n = std::stoul(argv[2]);
+    long limit_ms = std::stol(argv[3]);
+    bool print_path = std::stoi(argv[4]) > 0;
 
     std::list<tsp_optimizer> optimizers = {
         tsp_optimizer("steepest", steepest_optimizer),
-        tsp_optimizer("greedy", greedy_optimizer)
-        };
+        tsp_optimizer("greedy", greedy_optimizer)};
 
     auto coords = parse_file(path);
     const auto mat = cost_matrix(coords);
     auto v = random_vector(mat.mat.size());
 
-    auto problem = tsp(mat, n, 100);
+    // auto optimal = optimal_tour(mat, path);
+    // if(optimal.first < 0){
+    //     std::cout << "Cannot find optimal file for TSP " << path << '\n'; 
+    //     return -1;
+    // }
+
+    auto problem = tsp(mat, n, limit_ms, print_path);
+    // problem.add_optimal_tour(optimal);
 
     for (auto &optimizer : optimizers)
     {
+        std::cout << "Running optimizer: " << optimizer.name << '\n';
         problem.run(optimizer);
     }
 
-    problem.print_all();
+    std::ofstream file;
+    file.open(output_path(path, limit_ms));
+    file << problem;
+    file.close();
 
-    // std::vector<int> v (10);
-
-    // std::iota(v.begin(), v.end(), 0);
-    // print(v);
-    // shuffle(v);
-    // print(v);
-
-    // std::iota(v.begin(), v.end(), 0);
-    // print(v);
-    // shuffle(v);
-    // print(v);
-    
     return 0;
 }
