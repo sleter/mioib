@@ -367,6 +367,8 @@ class tsp
 
         do
         {
+            if(optimizer.shuffle) shuffle(v);
+            
             float local_cost = mat.compute_cost(v);
             float next_cost = optimizer(mat, v, local_cost);
             last_cost = next_cost;
