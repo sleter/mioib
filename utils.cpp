@@ -415,6 +415,8 @@ public:
             ++loop_it;
             ++path_it;
         }
+
+        return ostream;
     }
 };
 
