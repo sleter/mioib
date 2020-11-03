@@ -261,7 +261,7 @@ float inline greedy_optimizer_step(const cost_matrix &mat, std::vector<int> &v, 
     return prev_cost;
 }
 
-auto base_optimizer(std::function<float(const cost_matrix &mat, std::vector<int> &v, const float cost)> step)
+auto local_search_optimizer(const std::function<float(const cost_matrix &mat, std::vector<int> &v, const float cost)> step)
 {
     return [step](const cost_matrix &mat, std::vector<int> &v, const float cost) {
         float prev_cost = cost;
@@ -278,6 +278,18 @@ auto base_optimizer(std::function<float(const cost_matrix &mat, std::vector<int>
             }
         }
     };
+}
+
+// auto random_walk_optimizer(const long limit_ms)
+// {
+//     return [limit_ms](const cost_matrix &mat, std::vector<int> &v, const float cost) {
+
+//     };
+// }
+
+float random_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost){
+    shuffle(v);
+    return mat.compute_cost(v);
 }
 
 float heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost)
@@ -319,9 +331,10 @@ int64_t as_milliseconds(std::chrono::nanoseconds time)
 struct tsp_optimizer
 {
     const std::string name;
+    const bool shuffle;
     const std::function<float(const cost_matrix &, std::vector<int> &, const float)> optimizer;
 
-    tsp_optimizer(std::string name, std::function<float(const cost_matrix &, std::vector<int> &, const float)> optimizer) : name(name), optimizer(optimizer) {}
+    tsp_optimizer(std::string name, bool shuffle, std::function<float(const cost_matrix &, std::vector<int> &, const float)> optimizer) : name(name), shuffle(shuffle), optimizer(optimizer) {}
 
     const inline float operator()(const cost_matrix &mat, std::vector<int> &v, const float prev_cost) const
     {
@@ -354,7 +367,6 @@ class tsp
 
         do
         {
-            shuffle(v);
             float local_cost = mat.compute_cost(v);
             float next_cost = optimizer(mat, v, local_cost);
             last_cost = next_cost;
@@ -386,7 +398,7 @@ public:
             std::vector<int> v(mat.mat.size());
             std::iota(v.begin(), v.end(), 0);
 
-            // std::cout << "Run " << idx + 1 << '/' << iterations << '\n';
+            if(optimizer.shuffle) shuffle(v);
             measure_time(optimizer, v);
         }
     }
@@ -500,16 +512,6 @@ const std::pair<float, std::vector<int>> optimal_tour(const cost_matrix &mat, st
 
 int main(int argc, char *argv[])
 {
-    // std::string path = "tsplib/EUC_2D/a280.tsp";
-    // auto coords = parse_file(path);
-    // const auto mat = cost_matrix(coords);
-    // auto v = random_vector(mat.mat.size());
-
-    // auto o = tsp_optimizer("steepest", steepest_optimizer);
-    // auto problem = tsp(mat, 1, 10, false);
-
-    // problem.run(o);
-
     if (argc != 5)
     {
         std::cout << "Usage: " << argv[0] << " <file>.tsp <iterations> <time> <print_path>" << '\n';
@@ -522,9 +524,10 @@ int main(int argc, char *argv[])
     bool print_path = std::stoi(argv[4]) > 0;
 
     std::list<tsp_optimizer> optimizers = {
-        tsp_optimizer("steepest", base_optimizer(steepest_optimizer_step)),
-        tsp_optimizer("greedy", base_optimizer(greedy_optimizer_step)),
-        tsp_optimizer("heuristic", heuristic_optimizer)};
+        tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)),
+        tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)),
+        tsp_optimizer("heuristic", true, heuristic_optimizer),
+        tsp_optimizer("random", false, random_optimizer)};
 
     auto coords = parse_file(path);
     const auto mat = cost_matrix(coords);
