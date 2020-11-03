@@ -14,14 +14,9 @@
 #include <list>
 #include <set>
 
-std::default_random_engine rd{static_cast<long unsigned int>(time(0))};
-std::mt19937 gen(rd());
-
-size_t random_index(size_t from, size_t to)
-{
-    std::uniform_int_distribution<size_t> distribution(from, to);
-    return distribution(gen);
-}
+#include "random.hpp"
+#include "parser.hpp"
+#include "costmatrix.hpp"
 
 template <typename T>
 std::string as_string(const std::vector<T> &vec)
@@ -56,150 +51,6 @@ void print(const std::list<T> &list)
     std::cout << std::endl;
 }
 
-struct coords
-{
-    int x, y;
-
-    coords(int x, int y) : x(x), y(y) {}
-
-    friend std::ostream &operator<<(std::ostream &ostream, const coords &c)
-    {
-        ostream << "<" << c.x << "," << c.y << ">";
-        return ostream;
-    }
-};
-
-float euclidean_distance(const coords &from, const coords &to)
-{
-    int dx = from.x - to.x;
-    int dy = from.y - to.y;
-
-    float distance = float(dx * dx) + float(dy * dy);
-    return round(sqrt(distance));
-}
-
-// Uses return value optimization (RVO), no copy
-std::vector<coords> parse_file(const std::string &path)
-{
-    auto vec = std::vector<coords>();
-
-    std::ifstream file;
-    std::string line;
-
-    file.open(path);
-
-    if (file.is_open())
-    {
-        int nodeId;
-        float x, y;
-
-        std::regex re("^(\\w+)\\W*:\\W*(\\w+)$");
-        std::smatch matches;
-
-        while (std::getline(file, line))
-        {
-            // Reserve needed memory
-            if (std::regex_match(line, matches, re) && matches[1].compare("DIMENSION") == 0)
-                vec.reserve(std::stoi(matches[2]));
-
-            else if (line.compare("NODE_COORD_SECTION") == 0)
-                break;
-        }
-
-        while (file >> nodeId >> x >> y)
-        {
-            // Construct objects in correct memory address, no copy
-            vec.emplace_back(static_cast<int>(x), static_cast<int>(y));
-            if (line.compare("EOF") == 0)
-                break;
-        }
-
-        file.close();
-    }
-
-    return vec;
-}
-
-struct cost_matrix
-{
-    std::vector<std::vector<float>> mat;
-
-    cost_matrix(const std::vector<coords> &v)
-    {
-        mat = std::vector<std::vector<float>>(v.size());
-        for (auto &row : mat)
-            row.resize(v.size());
-
-        for (size_t i = 0; i < v.size(); ++i)
-        {
-            for (size_t j = i + 1; j < v.size(); ++j)
-            {
-                float distance = euclidean_distance(v[i], v[j]);
-                mat[i][j] = distance;
-                mat[j][i] = distance;
-            }
-        }
-    }
-
-    std::vector<float> &operator[](size_t idx) { return mat[idx]; }
-    const std::vector<float> &operator[](size_t idx) const { return mat[idx]; }
-
-    float compute_cost(std::vector<int> &v) const
-    {
-        float cost = mat[v[0]][v[v.size() - 1]];
-        for (int i = 1; i < v.size(); ++i)
-        {
-            cost += mat[v[i - 1]][v[i]];
-        }
-        return cost;
-    }
-
-    float evaluate_possible_cost(std::vector<int> &v, float cost_before, size_t x, size_t y) const
-    {
-        size_t x_prev = x - 1;
-        if (x == 0) // Fallback to the vector end
-            x_prev = v.size() - 1;
-
-        size_t y_succ = y + 1;
-        if (y_succ >= v.size())
-            y_succ = 0;
-
-        float removed_cost = mat[v[x_prev]][v[x]] + mat[v[y]][v[y_succ]];
-        float new_cost = mat[v[x_prev]][v[y]] + mat[v[x]][v[y_succ]];
-
-        if (x_prev == y && x == y_succ)
-            return cost_before;
-        else
-            return cost_before - removed_cost + new_cost;
-    }
-
-    void print_matrix()
-    {
-        for (auto &row : mat)
-        {
-            print(row);
-        }
-        std::cout << std::endl;
-    }
-};
-
-/** Shuffle vector with uniform distribution */
-template <typename T>
-void shuffle(std::vector<T> &v)
-{
-    for (size_t i = v.size() - 1; i > 0; --i)
-    {
-        std::swap(v[random_index(0, i)], v[i]);
-    }
-}
-
-std::vector<int> random_vector(size_t size)
-{
-    std::vector<int> v(size);
-    std::iota(v.begin(), v.end(), 0);
-    shuffle(v);
-    return v;
-}
 
 template <typename T>
 void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
@@ -298,11 +149,11 @@ float heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const flo
     {
         size_t prev_node = i - 1;
         size_t idx_to_swap = i;
-        float prev_cost = mat[v[i]][v[prev_node]];
+        float prev_cost = mat.at(v[i], v[prev_node]);
 
         for (size_t j = i + 1; j < v.size(); ++j)
         {
-            float new_cost = mat[v[j]][v[prev_node]];
+            float new_cost = mat.at(v[j], v[prev_node]);
             if (new_cost < prev_cost)
             {
                 prev_cost = new_cost;
@@ -395,7 +246,7 @@ public:
     {
         for (size_t idx = 0; idx < iterations; ++idx)
         {
-            std::vector<int> v(mat.mat.size());
+            std::vector<int> v(mat.size());
             std::iota(v.begin(), v.end(), 0);
 
             if(optimizer.shuffle) shuffle(v);
@@ -531,7 +382,7 @@ int main(int argc, char *argv[])
 
     auto coords = parse_file(path);
     const auto mat = cost_matrix(coords);
-    auto v = random_vector(mat.mat.size());
+    auto v = random_vector(mat.size());
 
     auto optimal = optimal_tour(mat, path);
     if (optimal.first < 0)
