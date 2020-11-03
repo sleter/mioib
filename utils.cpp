@@ -12,6 +12,7 @@
 #include <math.h>
 #include <map>
 #include <list>
+#include <set>
 
 std::default_random_engine rd{static_cast<long unsigned int>(time(0))};
 std::mt19937 gen(rd());
@@ -260,31 +261,49 @@ float inline greedy_optimizer_step(const cost_matrix &mat, std::vector<int> &v, 
     return prev_cost;
 }
 
-float inline base_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost, std::function<float(const cost_matrix &mat, std::vector<int> &v, const float cost)> step)
+auto base_optimizer(std::function<float(const cost_matrix &mat, std::vector<int> &v, const float cost)> step)
 {
-    float prev_cost = cost;
-    while (true)
-    {
-        float new_cost = step(mat, v, prev_cost);
-        if (new_cost < prev_cost)
+    return [step](const cost_matrix &mat, std::vector<int> &v, const float cost) {
+        float prev_cost = cost;
+        while (true)
         {
-            prev_cost = new_cost;
-        }
-        else
-        {
-            return prev_cost;
+            float new_cost = step(mat, v, prev_cost);
+            if (new_cost < prev_cost)
+            {
+                prev_cost = new_cost;
+            }
+            else
+            {
+                return prev_cost;
+            }
         }
     };
 }
 
-float inline steepest_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost)
+float heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost)
 {
-    return base_optimizer(mat, v, cost, steepest_optimizer_step);
-}
+    for (size_t i = 1; i < v.size(); ++i)
+    {
+        size_t prev_node = i - 1;
+        size_t idx_to_swap = i;
+        float prev_cost = mat[v[i]][v[prev_node]];
 
-float inline greedy_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost)
-{
-    return base_optimizer(mat, v, cost, greedy_optimizer_step);
+        for (size_t j = i + 1; j < v.size(); ++j)
+        {
+            float new_cost = mat[v[j]][v[prev_node]];
+            if (new_cost < prev_cost)
+            {
+                prev_cost = new_cost;
+                idx_to_swap = j;
+            }
+        }
+        if (i != idx_to_swap)
+        {
+            std::swap(v[i], v[idx_to_swap]);
+        }
+    }
+
+    return mat.compute_cost(v);
 }
 
 std::chrono::high_resolution_clock::time_point now()
@@ -503,8 +522,9 @@ int main(int argc, char *argv[])
     bool print_path = std::stoi(argv[4]) > 0;
 
     std::list<tsp_optimizer> optimizers = {
-        tsp_optimizer("steepest", steepest_optimizer),
-        tsp_optimizer("greedy", greedy_optimizer)};
+        tsp_optimizer("steepest", base_optimizer(steepest_optimizer_step)),
+        tsp_optimizer("greedy", base_optimizer(greedy_optimizer_step)),
+        tsp_optimizer("heuristic", heuristic_optimizer)};
 
     auto coords = parse_file(path);
     const auto mat = cost_matrix(coords);
