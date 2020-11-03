@@ -1,15 +1,26 @@
 #include "random.hpp"
 
-std::default_random_engine rd{static_cast<long unsigned int>(time(0))};
-std::mt19937 gen(rd());
-
-size_t random_index(size_t from, size_t to)
+random_utils::random_utils()
 {
-    std::uniform_int_distribution<size_t> distribution(from, to);
-    return distribution(gen);
+    engine.seed(std::chrono::system_clock::now().time_since_epoch().count());
+    generator = std::mt19937(engine());
 }
 
-std::vector<int> random_vector(size_t size)
+const size_t random_utils::index(const size_t from, const size_t to)
+{
+    std::uniform_int_distribution<size_t> distribution(from, to);
+    return distribution(generator);
+}
+
+void random_utils::shuffle(std::vector<int> &v)
+{
+    for (size_t i = v.size() - 1; i > 0; --i)
+    {
+        std::swap(v[index(0, i)], v[i]);
+    }
+}
+
+std::vector<int> random_utils::vector(const size_t size)
 {
     std::vector<int> v(size);
     std::iota(v.begin(), v.end(), 0);

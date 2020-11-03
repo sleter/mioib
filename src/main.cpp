@@ -13,44 +13,15 @@
 #include <map>
 #include <list>
 #include <set>
+#include <climits>
 
 #include "random.hpp"
 #include "parser.hpp"
 #include "costmatrix.hpp"
+#include "util.hpp"
+#include "time.hpp"
 
-template <typename T>
-std::string as_string(const std::vector<T> &vec)
-{
-    std::ostringstream os;
-    for (auto &i : vec)
-    {
-        os << i << " ";
-    }
-
-    std::string result = os.str();
-    if (result.size() > 0)
-    {
-        result.pop_back();
-    }
-    return result;
-}
-
-template <typename T>
-void print(const std::vector<T> &vec)
-{
-    std::cout << as_string(vec) << std::endl;
-}
-
-template <typename T>
-void print(const std::list<T> &list)
-{
-    for (auto &i : list)
-    {
-        std::cout << i << " ";
-    }
-    std::cout << std::endl;
-}
-
+random_utils random_;
 
 template <typename T>
 void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
@@ -64,17 +35,17 @@ void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
 }
 
 /** Returns the best cost from all possible neighbours and permutated vector v as referrence (if better solution was found)*/
-float inline steepest_optimizer_step(const cost_matrix &mat, std::vector<int> &v, const float cost)
+long inline steepest_optimizer_step(const cost_matrix &mat, std::vector<int> &v, const long cost)
 {
     bool found = false;
     size_t best_from, best_to;
-    float best_cost = cost;
+    long best_cost = cost;
 
     for (size_t from = 0; from < v.size() - 1; ++from)
     {
         for (size_t to = from + 1; to < v.size(); ++to)
         {
-            float next_cost = mat.evaluate_possible_cost(v, cost, from, to);
+            long next_cost = mat.evaluate_possible_cost(v, cost, from, to);
             if (next_cost < best_cost)
             {
                 found = true;
@@ -94,13 +65,13 @@ float inline steepest_optimizer_step(const cost_matrix &mat, std::vector<int> &v
 }
 
 /** Returns the first best cost and permutated vector v as referrence (if better solution was found)*/
-float inline greedy_optimizer_step(const cost_matrix &mat, std::vector<int> &v, const float prev_cost)
+long inline greedy_optimizer_step(const cost_matrix &mat, std::vector<int> &v, const long prev_cost)
 {
     for (size_t from = 0; from < v.size() - 1; ++from)
     {
         for (size_t to = from + 1; to < v.size(); ++to)
         {
-            float next_cost = mat.evaluate_possible_cost(v, prev_cost, from, to);
+            long next_cost = mat.evaluate_possible_cost(v, prev_cost, from, to);
             if (next_cost < prev_cost)
             {
                 swap_with_rotation(v, from, to);
@@ -112,13 +83,13 @@ float inline greedy_optimizer_step(const cost_matrix &mat, std::vector<int> &v, 
     return prev_cost;
 }
 
-auto local_search_optimizer(const std::function<float(const cost_matrix &mat, std::vector<int> &v, const float cost)> step)
+auto local_search_optimizer(const std::function<long(const cost_matrix &mat, std::vector<int> &v, const long cost)> step)
 {
-    return [step](const cost_matrix &mat, std::vector<int> &v, const float cost) {
-        float prev_cost = cost;
+    return [step](const cost_matrix &mat, std::vector<int> &v, const long cost) {
+        long prev_cost = cost;
         while (true)
         {
-            float new_cost = step(mat, v, prev_cost);
+            long new_cost = step(mat, v, prev_cost);
             if (new_cost < prev_cost)
             {
                 prev_cost = new_cost;
@@ -133,27 +104,27 @@ auto local_search_optimizer(const std::function<float(const cost_matrix &mat, st
 
 // auto random_walk_optimizer(const long limit_ms)
 // {
-//     return [limit_ms](const cost_matrix &mat, std::vector<int> &v, const float cost) {
+//     return [limit_ms](const cost_matrix &mat, std::vector<int> &v, const long cost) {
 
 //     };
 // }
 
-float random_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost){
-    shuffle(v);
+long random_optimizer(const cost_matrix &mat, std::vector<int> &v, const long cost){
+    random_.shuffle(v);
     return mat.compute_cost(v);
 }
 
-float heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const float cost)
+long heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const long cost)
 {
     for (size_t i = 1; i < v.size(); ++i)
     {
         size_t prev_node = i - 1;
         size_t idx_to_swap = i;
-        float prev_cost = mat.at(v[i], v[prev_node]);
+        long prev_cost = mat.at(v[i], v[prev_node]);
 
         for (size_t j = i + 1; j < v.size(); ++j)
         {
-            float new_cost = mat.at(v[j], v[prev_node]);
+            long new_cost = mat.at(v[j], v[prev_node]);
             if (new_cost < prev_cost)
             {
                 prev_cost = new_cost;
@@ -169,25 +140,15 @@ float heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const flo
     return mat.compute_cost(v);
 }
 
-std::chrono::high_resolution_clock::time_point now()
-{
-    return std::chrono::high_resolution_clock::now();
-}
-
-int64_t as_milliseconds(std::chrono::nanoseconds time)
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
-}
-
 struct tsp_optimizer
 {
     const std::string name;
     const bool shuffle;
-    const std::function<float(const cost_matrix &, std::vector<int> &, const float)> optimizer;
+    const std::function<long(const cost_matrix &, std::vector<int> &, const long)> optimizer;
 
-    tsp_optimizer(std::string name, bool shuffle, std::function<float(const cost_matrix &, std::vector<int> &, const float)> optimizer) : name(name), shuffle(shuffle), optimizer(optimizer) {}
+    tsp_optimizer(std::string name, bool shuffle, std::function<long(const cost_matrix &, std::vector<int> &, const long)> optimizer) : name(name), shuffle(shuffle), optimizer(optimizer) {}
 
-    const inline float operator()(const cost_matrix &mat, std::vector<int> &v, const float prev_cost) const
+    const inline long operator()(const cost_matrix &mat, std::vector<int> &v, const long prev_cost) const
     {
         return optimizer(mat, v, prev_cost);
     }
@@ -198,8 +159,8 @@ class tsp
     std::list<std::string> optimizer_names;
     std::list<size_t> loops;
     std::list<long> elapsed_time_ms;
-    std::list<float> best_costs;
-    std::list<float> last_costs;
+    std::list<long> best_costs;
+    std::list<long> last_costs;
     std::list<std::vector<int>> best_paths;
 
     const cost_matrix mat;
@@ -211,15 +172,19 @@ class tsp
     {
         long elapsed = 0;
         uint32_t iteration = 0;
-        float best_cost = MAXFLOAT;
-        float last_cost = MAXFLOAT;
+        long best_cost = LONG_MAX;
+        long last_cost = LONG_MAX;
 
         auto start_time = now();
 
         do
         {
-            float local_cost = mat.compute_cost(v);
-            float next_cost = optimizer(mat, v, local_cost);
+            if(optimizer.shuffle){
+                random_.shuffle(v);
+            }
+
+            long local_cost = mat.compute_cost(v);
+            long next_cost = optimizer(mat, v, local_cost);
             last_cost = next_cost;
 
             if (next_cost < best_cost)
@@ -249,12 +214,12 @@ public:
             std::vector<int> v(mat.size());
             std::iota(v.begin(), v.end(), 0);
 
-            if(optimizer.shuffle) shuffle(v);
+            if(optimizer.shuffle) random_.shuffle(v);
             measure_time(optimizer, v);
         }
     }
 
-    void add_optimal_tour(std::pair<float, std::vector<int>> &optimal)
+    void add_optimal_tour(std::pair<long, std::vector<int>> &optimal)
     {
         elapsed_time_ms.emplace_back(0);
         loops.emplace_back(0);
@@ -314,7 +279,7 @@ const std::string output_path(const std::string intput_path, const long limit_ms
     return "output/" + file_name(intput_path) + "_" + std::to_string(limit_ms) + ".csv";
 }
 
-const std::pair<float, std::vector<int>> optimal_tour(const cost_matrix &mat, std::string path)
+const std::pair<long, std::vector<int>> optimal_tour(const cost_matrix &mat, std::string path)
 {
     std::string opt_tour = ".opt.tour";
     std::string optimal_solution_path = path;
@@ -352,7 +317,7 @@ const std::pair<float, std::vector<int>> optimal_tour(const cost_matrix &mat, st
 
         file.close();
 
-        float cost = mat.compute_cost(vec);
+        long cost = mat.compute_cost(vec);
         return std::make_pair(cost, vec);
     }
     else
@@ -382,7 +347,7 @@ int main(int argc, char *argv[])
 
     auto coords = parse_file(path);
     const auto mat = cost_matrix(coords);
-    auto v = random_vector(mat.size());
+    auto v = random_.vector(mat.size());
 
     auto optimal = optimal_tour(mat, path);
     if (optimal.first < 0)

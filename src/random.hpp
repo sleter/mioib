@@ -1,21 +1,24 @@
 #pragma once
 
-#include<cstddef>
-#include<vector>
-#include<random>
+#include <cstddef>
+#include <vector>
+#include <random>
+#include <chrono>
 
-/** Returns a random index from range <from, to> */
-size_t random_index(size_t from, size_t to);
-
-/** Shuffle vector with uniform distribution */
-template <typename T>
-void shuffle(std::vector<T> &v)
+class random_utils
 {
-    for (size_t i = v.size() - 1; i > 0; --i)
-    {
-        std::swap(v[random_index(0, i)], v[i]);
-    }
-}
+    std::default_random_engine engine;
+    std::mt19937 generator;
 
-/** Returns random vector of integers from range <0, size-1> */
-std::vector<int> random_vector(size_t size);
+public:
+    random_utils();
+
+    /** Returns a random index from range <from, to> */
+    const size_t index(const size_t from, const size_t to);
+
+    /** Shuffle vector with uniform distribution */
+    void shuffle(std::vector<int> &v);
+
+    /** Returns random vector of integers from range <0, size-1> */
+    std::vector<int> vector(const size_t size);
+};

@@ -24,10 +24,10 @@ const long cost_matrix::at(const size_t row, const size_t col) const
 
 const long cost_matrix::compute_cost(std::vector<int> &v) const
 {
-    long cost = matrix[v[0] * _size + v[v.size() - 1]];
+    long cost = matrix[v[0]*_size + v[v.size() - 1]];
     for (size_t i = 1; i < v.size(); ++i)
     {
-        cost += matrix[v[i - 1] * _size + v[i]];
+        cost += matrix[v[i - 1]*_size + v[i]];
     }
     return cost;
 }
@@ -42,8 +42,8 @@ const long cost_matrix::evaluate_possible_cost(std::vector<int> &v, long cost_be
     if (y_succ >= v.size())
         y_succ = 0;
 
-    const long removed_cost = matrix[v[x_prev] * _size + v[x]] + matrix[v[y] * _size + v[y_succ]];
-    const long new_cost = matrix[v[x_prev] * _size + v[y]] + matrix[v[x] * _size + v[y_succ]];
+    const long removed_cost = matrix[v[x_prev]*_size + v[x]] + matrix[v[y]*_size + v[y_succ]];
+    const long new_cost = matrix[v[x_prev]*_size + v[y]] + matrix[v[x]*_size + v[y_succ]];
 
     if (x_prev == y && x == y_succ)
         return cost_before;
