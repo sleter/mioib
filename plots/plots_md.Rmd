@@ -1,0 +1,56 @@
+---
+title: "plots_md"
+author: "Szymon Janowski"
+date: "4 11 2020"
+output: html_document
+---
+
+## Load libraries
+```{r load_test, error=FALSE, warning=FALSE}
+library(ggplot2)
+library(dbplyr)
+library(dplyr)
+```
+
+
+## Load data
+
+```{r load}
+filenames <- list.files("../output", pattern="*.csv", full.names=TRUE)
+dfs <- lapply(filenames, read.csv)
+names(dfs) <- substr(filenames, 11, 30)
+
+names(dfs)
+```
+```{r load_test}
+summary(dfs$`a280_1000.csv`)
+```
+
+```{r combined_df}
+combined_df <- bind_rows(dfs, .id="instance")
+unique(combined_df$instance)
+```
+
+## Working time
+
+```{r working_time}
+ggplot(dfs$`a280_1000.csv`, aes(x=elapsed_time_ms/loop_count, y=optimizer_name)) + geom_boxplot()
+```
+
+
+```{r working_time2}
+ggplot(combined_df, aes(x=best_cost, y=optimizer_name)) + geom_point() + facet_wrap(~instance)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
