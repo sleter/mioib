@@ -5,9 +5,16 @@ date: "4 11 2020"
 output: html_document
 ---
 
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE, error = FALSE
+)
+```
+
 ## Load libraries
 ```{r load_test, error=FALSE, warning=FALSE}
 library(ggplot2)
+library(cowplot)
 library(dbplyr)
 library(dplyr)
 ```
@@ -16,31 +23,96 @@ library(dplyr)
 ## Load data
 
 ```{r load}
-filenames <- list.files("../output", pattern="*.csv", full.names=TRUE)
-dfs <- lapply(filenames, read.csv)
-names(dfs) <- substr(filenames, 11, 30)
-
-names(dfs)
-```
-```{r load_test}
-summary(dfs$`a280_1000.csv`)
+df <- read.csv("results.csv")
+df
 ```
 
-```{r combined_df}
-combined_df <- bind_rows(dfs, .id="instance")
-unique(combined_df$instance)
+## Score
+
+```{r score, fig.width=12, fig.height=6}
+
+problems = unique(df$problem)
+
+boxi <- function(df_temp){
+  p <- ggplot(
+    df_temp,
+    aes(
+      factor(optimizer),
+      final_score,
+      fill=optimizer)) + geom_boxplot() + xlab("Optimizer") + ylab("Score")
+  return(p)
+}
+
+for(p in problems){
+  df_temp_R <- df %>% filter(problem == p & (optimizer == "random" | optimizer == "random_walk")) %>% select(c("optimizer", "final_score"))
+  df_temp_nR <- df %>% filter(problem == p & (optimizer != "random" & optimizer != "random_walk")) %>% select(c("optimizer", "final_score"))
+  
+  p_boxplot_R <- boxi(df_temp_R)
+  
+  p_boxplot_nR <- boxi(df_temp_nR)
+  
+  p_comb <- plot_grid(p_boxplot_nR, p_boxplot_R, labels=c("P1", "P2"), nrow=1, ncol=2)
+  print(p_comb)
+  # save_plot(sprintf("plots_res/alg_comp/opt_comp_score_%s.pdf", p), p_comb)
+}
+
 ```
 
-## Working time
+## Time
 
-```{r working_time}
-ggplot(dfs$`a280_1000.csv`, aes(x=elapsed_time_ms/loop_count, y=optimizer_name)) + geom_boxplot()
+```{r time, fig.width=12, fig.height=10}
+
+plots_vec <- vector('list', length(problems))
+
+i<-0
+for(p in problems){
+  df_temp <- df %>%
+    filter(problem == p) %>%
+    select(c("optimizer", "time_ms")) %>%
+    distinct(optimizer, time_ms, .keep_all = TRUE)
+
+  df_temp$opt <- c("O", "S", "G", "H", "R", "RW")
+
+  plot_ <- ggplot(
+    df_temp,
+    aes(
+      x=opt,
+      y=time_ms)) + geom_point(aes(col=time_ms), size=3) + xlab("Optimizer") + ylab("Time [ms]")
+
+  i<-i+1
+  plots_vec[[i]] <- plot_
+}
+
+plot_comb <- plot_grid(plotlist=plots_vec, nrow=4, ncol=3, labels=problems, align = 'hv', hjust=0, vjust=4, label_size=17, label_colour = "blue")
+plot_comb
+
+# df_temp <- df %>% select(c("problem", "optimizer", "time_ms")) %>% distinct(optimizer, problem, time_ms, .keep_all = TRUE)
+# ggplot(df_temp, aes(x=optimizer, y=time_ms)) + geom_point(aes(col=time_ms), size=3) + facet_wrap(~problem, scales="free_y") + xlab("Optimizer") + ylab("Time [ms]")
+
+# save_plot("plots_res/alg_comp/opt_comp_time.pdf", plot_comb, ncol = 3, nrow = 4)
+```
+
+## Steps
+
+```{r steps, fig.width=10, fig.height=10}
+
+df_temp <- df %>% select(c("problem", "optimizer", "steps")) %>% filter(optimizer == "steepest" | optimizer == "greedy")
+# df_temp$optimizer <- toupper(substr(df_temp$optimizer, 0, 1))
+
+plot_steps <- ggplot(
+    df_temp,
+    aes(
+      factor(optimizer),
+      steps,
+      fill=optimizer)) + geom_boxplot() + xlab("Optimizer") + ylab("Score") + facet_wrap(~problem, scales="free_y")
+
+plot_steps
+
+save_plot("plots_res/alg_comp/opt_comp_steps.pdf", plot_steps, ncol = 4, nrow = 4)
+
 ```
 
 
-```{r working_time2}
-ggplot(combined_df, aes(x=best_cost, y=optimizer_name)) + geom_point() + facet_wrap(~instance)
-```
 
 
 
