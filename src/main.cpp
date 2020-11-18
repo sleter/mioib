@@ -48,13 +48,16 @@ std::string as_string(const std::vector<T> &vec)
 struct optimization_header
 {
     std::string problem;
+    size_t problem_size = 0;
+
     std::string optimizer;
     size_t time_iterations = 0;
     long time_duration_ms = 0;
 
-    optimization_header &with_names(const std::string &problem, const std::string &optimizer)
+    optimization_header &with_names(const std::string &problem, const size_t problem_size, const std::string &optimizer)
     {
         this->problem = problem;
+        this->problem_size = problem_size;
         this->optimizer = optimizer;
         return *this;
     }
@@ -74,14 +77,14 @@ struct optimization_header
     std::string to_csv() const
     {
         std::stringstream ss;
-        ss << problem << ',' << optimizer << ',' << time_iterations << ',' << time_duration_ms << ',' << time_ms();
+        ss << problem << ',' << problem_size <<',' << optimizer << ',' << time_iterations << ',' << time_duration_ms << ',' << time_ms();
         return ss.str();
     }
 
     static const std::string csv_header;
 };
 
-const std::string optimization_header::csv_header = "problem,optimizer,time_iterations,time_duration_ms,time_ms";
+const std::string optimization_header::csv_header = "problem,problem_size,optimizer,time_iterations,time_duration_ms,time_ms";
 
 struct optimization_step
 {
@@ -476,11 +479,11 @@ class tsp
 
         size_t iterations = max_iterations;
         if (mat.problem_size > 400)
-            iterations = std::min(size_t(10), iterations);
+            iterations = std::min(size_t(30), iterations);
 
         for (size_t i = 0; i < iterations; ++i)
         {
-            optimization_raport raport(header.with_names(problem, optimizer.name));
+            optimization_raport raport(header.with_names(problem, vector.size(), optimizer.name));
             if (optimizer.shuffle)
                 shuffle(vector);
 
@@ -523,7 +526,7 @@ public:
         long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
         long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
         long random_ms = std::max(steepest_ms, greedy_ms);
-        
+
         run_experiment(mat, problem, tsp_optimizer("heuristic", true, heuristic_optimizer));
         run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
         run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
