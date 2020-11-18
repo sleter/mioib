@@ -29,17 +29,76 @@ df
 
 ## Score
 
+<!-- # ```{r score2, fig.width=12, fig.height=6} -->
+<!-- #  -->
+<!-- # df_temp <- df %>% -->
+<!-- #   select(c("problem", "optimizer", "final_score")) %>% -->
+<!-- #   filter(problem != "pr1002" & problem != "pcb442") %>% -->
+<!-- #   summarySE(measurevar="final_score", groupvars=c("optimizer","problem")) -->
+<!-- #  -->
+<!-- #    -->
+<!-- # pd <- position_dodge(0.1) -->
+<!-- #  -->
+<!-- # plot_seen <- ggplot( -->
+<!-- #     df_temp, -->
+<!-- #     aes( -->
+<!-- #      x = problem, -->
+<!-- #      y = final_score, -->
+<!-- #      color = optimizer, -->
+<!-- #      group = optimizer -->
+<!-- #     )) + geom_errorbar(aes(ymin=final_score-se, ymax=final_score+se), colour="black", width=.1, position=pd) + -->
+<!-- #          geom_line(position=pd, alpha=0.4) + -->
+<!-- #          geom_point(position=pd, size=3, shape=21, fill="white") + -->
+<!-- #          theme_bw() -->
+<!-- #  -->
+<!-- # plot_seen -->
+<!-- #  -->
+<!-- # ``` -->
+
 ```{r score, fig.width=12, fig.height=6}
+
+data_summary <- function(x) {
+   m <- mean(x)
+   ymin <- m-sd(x)
+   ymax <- m+sd(x)
+   return(c(y=m,ymin=ymin,ymax=ymax))
+}
 
 problems = unique(df$problem)
 
 boxi <- function(df_temp){
+  
+  # opti <- df_temp[df_temp$optimizer == "optimal",]$final_score
+  # dfi <- data.frame(problems, rep(opti, each=length(problems)))
+  
+  # p <- ggplot() +
+  #   geom_boxplot(
+  #     data = df_temp,
+  #     aes(
+  #       factor(optimizer),
+  #       final_score,
+  #       fill=optimizer)) +
+  #   # geom_line(data=dfi, aes(y=opti[1]), linetype="dotted", color="red") +
+  #   xlab("Optimizer") +
+  #   ylab("Score") +
+  #   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1)) +
+  #   theme_bw()
+  
   p <- ggplot(
-    df_temp,
+    data = df_temp,
     aes(
       factor(optimizer),
       final_score,
-      fill=optimizer)) + geom_boxplot() + xlab("Optimizer") + ylab("Score")
+      fill=optimizer)) +
+    geom_violin(
+      trim=FALSE) +
+    # geom_line(data=dfi, aes(y=opti[1]), linetype="dotted", color="red") +
+    geom_boxplot(width=0.1, alpha=0.4) + 
+    xlab("Optimizer") +
+    ylab("Score") +
+    scale_fill_brewer(palette="Blues") + theme_classic() +
+    theme_bw()
+    
   return(p)
 }
 
@@ -51,9 +110,9 @@ for(p in problems){
   
   p_boxplot_nR <- boxi(df_temp_nR)
   
-  p_comb <- plot_grid(p_boxplot_nR, p_boxplot_R, labels=c("P1", "P2"), nrow=1, ncol=2)
+  p_comb <- plot_grid(p_boxplot_nR, p_boxplot_R, labels=c("1", "2"), nrow=1, ncol=2)
   print(p_comb)
-  # save_plot(sprintf("plots_res/alg_comp/opt_comp_score_%s.pdf", p), p_comb)
+  ggsave(sprintf("plots_res/alg_comp/violin/opt_comp_score_violin_%s.pdf", p), p_comb, width = 12, height = 6)
 }
 
 ```
@@ -64,32 +123,49 @@ for(p in problems){
 
 plots_vec <- vector('list', length(problems))
 
-i<-0
-for(p in problems){
-  df_temp <- df %>%
-    filter(problem == p) %>%
-    select(c("optimizer", "time_ms")) %>%
-    distinct(optimizer, time_ms, .keep_all = TRUE)
+# i<-0
+# for(p in problems){
+#   df_temp <- df %>%
+#     filter(problem == p) %>%
+#     select(c("optimizer", "time_ms")) %>%
+#     distinct(optimizer, time_ms, .keep_all = TRUE)
+# 
+#   df_temp$opt <- c("O", "S", "G", "H", "R", "RW")
+# 
+#   plot_ <- ggplot(
+#     df_temp,
+#     aes(
+#       x=opt,
+#       y=time_ms)) + geom_point(aes(col=time_ms), size=3) + xlab("Optimizer") + ylab("Time [ms]")
+# 
+#   i<-i+1
+#   plots_vec[[i]] <- plot_
+# }
+# 
+# plot_comb <- plot_grid(plotlist=plots_vec, nrow=4, ncol=3, labels=problems, align = 'hv', hjust=0, vjust=4, label_size=17, label_colour = "blue")
+# plot_comb
 
-  df_temp$opt <- c("O", "S", "G", "H", "R", "RW")
+df_temp <- df %>%
+  filter(optimizer != "optimal") %>%
+  transform(time_ms =  time_duration_ms/time_iterations) %>%
+  select(c("problem", "optimizer", "time_ms")) %>%
+  distinct(optimizer, problem, time_ms, .keep_all = TRUE)
 
-  plot_ <- ggplot(
-    df_temp,
-    aes(
-      x=opt,
-      y=time_ms)) + geom_point(aes(col=time_ms), size=3) + xlab("Optimizer") + ylab("Time [ms]")
+# head(df_temp)
 
-  i<-i+1
-  plots_vec[[i]] <- plot_
-}
+plot_comb <- ggplot(df_temp, aes(x=optimizer, y=time_ms)) +
+  geom_point(aes(col=time_ms), size=3) +
+  facet_wrap(~problem, scales="free_y") +
+  xlab("Optimizer") + ylab("Time [ms]") +
+  theme_bw(
+    base_line_size = 1/10,
+    base_rect_size = 1/10
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-plot_comb <- plot_grid(plotlist=plots_vec, nrow=4, ncol=3, labels=problems, align = 'hv', hjust=0, vjust=4, label_size=17, label_colour = "blue")
 plot_comb
 
-# df_temp <- df %>% select(c("problem", "optimizer", "time_ms")) %>% distinct(optimizer, problem, time_ms, .keep_all = TRUE)
-# ggplot(df_temp, aes(x=optimizer, y=time_ms)) + geom_point(aes(col=time_ms), size=3) + facet_wrap(~problem, scales="free_y") + xlab("Optimizer") + ylab("Time [ms]")
-
-# save_plot("plots_res/alg_comp/opt_comp_time.pdf", plot_comb, ncol = 3, nrow = 4)
+# ggsave("plots_res/alg_comp/opt_comp_time.pdf", plot_comb, width=12, height=8)
 ```
 
 ## Steps
@@ -104,18 +180,175 @@ plot_steps <- ggplot(
     aes(
       factor(optimizer),
       steps,
-      fill=optimizer)) + geom_boxplot() + xlab("Optimizer") + ylab("Score") + facet_wrap(~problem, scales="free_y")
+      fill=optimizer)) + geom_boxplot(size=0.1) + xlab("Optimizer") + ylab("Steps") + facet_wrap(~problem, scales="free_y") +
+  theme_bw(
+    base_line_size = 1/10,
+    base_rect_size = 1/10
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 plot_steps
 
-save_plot("plots_res/alg_comp/opt_comp_steps.pdf", plot_steps, ncol = 4, nrow = 4)
+ggsave("plots_res/alg_comp/opt_comp_steps.pdf", plot_steps, width=12, height=8)
+
+```
+
+## Seen
+
+```{r sse}
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+    library(plyr)
+
+    # New version of length which can handle NA's: if na.rm==T, don't count them
+    length2 <- function (x, na.rm=FALSE) {
+        if (na.rm) sum(!is.na(x))
+        else       length(x)
+    }
+
+    # This does the summary. For each group's data frame, return a vector with
+    # N, mean, and sd
+    datac <- ddply(data, groupvars, .drop=.drop,
+      .fun = function(xx, col) {
+        c(N    = length2(xx[[col]], na.rm=na.rm),
+          mean = mean   (xx[[col]], na.rm=na.rm),
+          sd   = sd     (xx[[col]], na.rm=na.rm)
+        )
+      },
+      measurevar
+    )
+
+    # Rename the "mean" column    
+    datac <- rename(datac, c("mean" = measurevar))
+
+    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+
+    # Confidence interval multiplier for standard error
+    # Calculate t-statistic for confidence interval: 
+    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+    datac$ci <- datac$se * ciMult
+
+    return(datac)
+}
+```
+
+```{r seen, fig.width=12, fig.height=8}
+
+# df_temp <- df %>% select(c("problem", "optimizer", "seen_solutions")) %>% summarySE(measurevar="seen_solutions", groupvars=c("optimizer","problem"))
+
+# df_temp
+
+# pd <- position_dodge(0.1)
+# 
+# plot_seen <- ggplot(
+#     df_temp,
+#     aes(
+#      x = problem,
+#      y = seen_solutions,
+#      color = optimizer,
+#      group = optimizer
+#     )) + geom_errorbar(aes(ymin=seen_solutions-se, ymax=seen_solutions+se), colour="black", width=.1, position=pd) + 
+#          geom_line(position=pd) +
+#          geom_point(position=pd, size=3, shape=21, fill="white")
+# 
+# plot_seen
+
+# plots_vec <- vector('list', length(problems))
+# 
+# i<-0
+# for(p in problems){
+#   df_temp <- df %>%
+#     filter(problem == p) %>%
+#     select(c("optimizer", "seen_solutions")) %>%
+#     filter(optimizer != "optimal") %>%
+#     summarySE(measurevar="seen_solutions", groupvars=c("optimizer"))
+#   
+#   df_temp$opt <- c("G", "H", "R", "RW", "S")
+# 
+#   plot_ <- ggplot(
+#     df_temp,
+#     aes(
+#       x=opt,
+#       y = seen_solutions)) + xlab("Optimizer") + ylab("Seen solutions") + 
+#                              geom_errorbar(aes(ymin=seen_solutions-se, ymax=seen_solutions+se), colour="blue", width=.1, position=pd) +
+#                              geom_line(position=pd, alpha=0.2) +
+#                              geom_point(position=pd, size=3, shape=21, fill="white")
+# 
+#   i<-i+1
+#   plots_vec[[i]] <- plot_
+# }
+# 
+# plot_comb <- plot_grid(plotlist=plots_vec, nrow=4, ncol=3)
+# plot_comb
+
+df_temp <- df %>%
+  select(c("problem", "optimizer", "seen_solutions")) %>%
+  filter(optimizer != "optimal")
+
+plot_steps <- ggplot(
+    df_temp,
+    aes(
+      factor(optimizer),
+      seen_solutions,
+      fill=optimizer)) + geom_boxplot(size=0.1) + xlab("Optimizer") + ylab("Seen solutions") + facet_wrap(~problem, scales="free_y") +
+  theme_bw(
+    base_line_size = 1/10,
+    base_rect_size = 1/10
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+plot_steps
+
+ggsave("plots_res/alg_comp/opt_comp_seen.pdf", plot_steps, width=12, height=8)
+
+```
+
+## Jakosc pocz vs koncowa
+
+```{r pk, fig.width=12, fig.height=8}
+
+# selected_problems = setdiff(problems, c("kroA100", "kroC100"))
+
+df_temp <- df %>%
+  # filter(problem %in% selected_problems) %>%
+  filter(optimizer == "steepest" | optimizer == "greedy") %>%
+  select(c("problem", "optimizer", "start_score", "final_score"))
+
+# df_temp
+
+plot_steps <- ggplot(df_temp, aes(start_score, final_score, color=optimizer)) +
+  geom_jitter(alpha=0.8) +
+  xlab("Start score") +
+  ylab("Final score") +
+  facet_wrap(~problem, scales="free") + 
+  theme_bw(
+    base_line_size = 1/10,
+    base_rect_size = 1/10
+  )
+
+plot_steps
+
+ggsave("plots_res/alg_comp/start_vs_end.pdf", plot_steps, width=12, height=8)
 
 ```
 
 
+## Jakosc w czasie
+
+```{r pk, fig.width=12, fig.height=8}
+
+rows = nrow(df)
+
+vmin = rep(0, rows)
+vmean = rep(0, rows)
+
+for(i in rows){
+  
+}
 
 
-
+```
 
 
 
