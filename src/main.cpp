@@ -173,7 +173,7 @@ std::vector<coords> parse_file(const std::string &path)
     if (file.is_open())
     {
         int nodeId;
-        uint32_t x, y;
+        float x, y;
 
         std::regex re("^(\\w+)\\W*:\\W*(\\w+)$");
         std::smatch matches;
@@ -476,7 +476,7 @@ class tsp
 
         size_t iterations = max_iterations;
         if (mat.problem_size > 400)
-            iterations = 10;
+            iterations = std::min(size_t(10), iterations);
 
         for (size_t i = 0; i < iterations; ++i)
         {
@@ -520,11 +520,13 @@ public:
     void run_experiments(const cost_matrix &mat, std::string problem)
     {
         // tsp_optimizer("random", false, random_optimizer)};
-        long random_limit_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
-        run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
+        long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
+        long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
+        long random_ms = std::max(steepest_ms, greedy_ms);
+        
         run_experiment(mat, problem, tsp_optimizer("heuristic", true, heuristic_optimizer));
-        run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_limit_ms, random_step)));
-        run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_limit_ms, random_walk_step)));
+        run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
+        run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
     }
 
     void add_optimal_tour(const std::string &problem, const std::pair<uint32_t, std::vector<int>> &optimal)
