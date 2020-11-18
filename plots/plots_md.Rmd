@@ -24,6 +24,7 @@ library(dplyr)
 
 ```{r load}
 df <- read.csv("results.csv")
+problems = unique(df$problem)
 df
 ```
 
@@ -64,8 +65,6 @@ data_summary <- function(x) {
    return(c(y=m,ymin=ymin,ymax=ymax))
 }
 
-problems = unique(df$problem)
-
 boxi <- function(df_temp){
   
   # opti <- df_temp[df_temp$optimizer == "optimal",]$final_score
@@ -95,7 +94,6 @@ boxi <- function(df_temp){
     # geom_line(data=dfi, aes(y=opti[1]), linetype="dotted", color="red") +
     geom_boxplot(width=0.1, alpha=0.4) + 
     xlab("Optimizer") +
-    ylab("Score") +
     scale_fill_brewer(palette="Blues") + theme_classic() +
     theme_bw()
     
@@ -110,7 +108,7 @@ for(p in problems){
   
   p_boxplot_nR <- boxi(df_temp_nR)
   
-  p_comb <- plot_grid(p_boxplot_nR, p_boxplot_R, labels=c("1", "2"), nrow=1, ncol=2)
+  p_comb <- plot_grid(p_boxplot_nR+ylab("Score"), p_boxplot_R+ylab(""), labels=c("1", "2"), nrow=1, ncol=2)
   print(p_comb)
   ggsave(sprintf("plots_res/alg_comp/violin/opt_comp_score_violin_%s.pdf", p), p_comb, width = 12, height = 6)
 }
@@ -180,12 +178,14 @@ plot_steps <- ggplot(
     aes(
       factor(optimizer),
       steps,
-      fill=optimizer)) + geom_boxplot(size=0.1) + xlab("Optimizer") + ylab("Steps") + facet_wrap(~problem, scales="free_y") +
+      fill=optimizer)) +
+  geom_boxplot(size=0.1) + xlab("Optimizer") + ylab("Steps") + facet_wrap(~problem, scales="free_y") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  scale_y_log10()
 
 plot_steps
 
@@ -300,7 +300,7 @@ plot_steps <- ggplot(
 
 plot_steps
 
-ggsave("plots_res/alg_comp/opt_comp_seen.pdf", plot_steps, width=12, height=8)
+# ggsave("plots_res/alg_comp/opt_comp_seen.pdf", plot_steps, width=12, height=8)
 
 ```
 
@@ -329,24 +329,72 @@ plot_steps <- ggplot(df_temp, aes(start_score, final_score, color=optimizer)) +
 
 plot_steps
 
-ggsave("plots_res/alg_comp/start_vs_end.pdf", plot_steps, width=12, height=8)
+ggsave("plots_res/start_vs_end.pdf", plot_steps, width=12, height=8)
 
 ```
 
 
 ## Jakosc w czasie
 
-```{r pk, fig.width=12, fig.height=8}
+```{r pk, fig.width=8, fig.height=4}
 
-rows = nrow(df)
 
-vmin = rep(0, rows)
-vmean = rep(0, rows)
+get_vs <- function(df){
+  rows = nrow(df)
 
-for(i in rows){
+  vmin <- rep(0, rows)
+  vmean <- rep(0, rows)
+  v <- as.numeric(df$final_score)
   
+  for(i in seq_along(v)){
+    vmin[i] <- min(v[1:i])
+    vmean[i] <- mean(v[1:i])
+  }
+  
+  df$vmin = vmin
+  df$vmean = vmean
+  df$iters = seq_along(v)
+  
+  return(df)
 }
 
+for(p in problems){
+  df_temp <- df %>%
+    filter(problem == p) %>%
+    select(c("problem", "optimizer", "final_score"))
+  
+  df_temp_S <- df_temp %>%
+    filter(optimizer == "steepest")
+
+  df_temp_G <- df_temp %>%
+    filter(optimizer == "greedy")
+
+  df_temp_S <- get_vs(df_temp_S)
+  df_temp_G <- get_vs(df_temp_G)
+  
+  df_temp <- rbind(df_temp_S, df_temp_G)
+  
+  colors <- c("Min" = '#F8766D', "Mean" = '#00BFC4')
+
+  plot_temp <- ggplot(df_temp) +
+    geom_point(aes(x=iters, y=vmin, color='Min')) +
+    geom_line(aes(x=iters, y=vmin, color='Min'), alpha=0.5) +
+    geom_point(aes(x=iters, y=vmean, color='Mean')) +
+    geom_line(aes(x=iters, y=vmean, color='Mean'), alpha=0.5) +
+    labs(x = "Iteration",
+         y = "Score",
+         color = "Legend") +
+    scale_color_manual(values = colors) +
+    facet_wrap(~optimizer) +
+    theme_bw(
+      base_line_size = 1/10,
+      base_rect_size = 1/10
+    )
+
+  print(plot_temp)
+  
+  ggsave(sprintf("plots_res/mean_min_score_%s.pdf", p), plot_temp, width = 8, height = 4)
+}
 
 ```
 
