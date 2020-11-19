@@ -18,6 +18,8 @@ library(cowplot)
 library(dbplyr)
 library(dplyr)
 library(wesanderson)
+library(tidyr)
+library("RColorBrewer")
 ```
 
 
@@ -26,6 +28,7 @@ library(wesanderson)
 ```{r load}
 df <- read.csv("results.csv")
 problems = unique(df$problem)
+df <- df %>% arrange(problem_size)
 df
 ```
 
@@ -114,46 +117,78 @@ data_summary <- function(x) {
 #   ggsave(sprintf("plots_res/alg_comp/violin/opt_comp_score_violin_%s.pdf", p), p_comb, width = 12, height = 6)
 # }
 
-ggplot(data = df, aes(x=problem, y=final_score, fill=optimizer)) +
-  stat_summary(geom = "bar", fun.y = mean, position = "dodge") +
-  stat_summary(geom = "errorbar", fun.data = mean_se, position = "dodge", fun.args = list(mult = 100)) +
-  xlab("Optimizer") + ylab("Score") +
-  scale_fill_brewer(palette="Blues") +
-  theme_classic() +
-  theme_bw() +
-  scale_y_log10()
+# ggplot(data = df, aes(x=problem, y=final_score, fill=optimizer)) +
+#   stat_summary(geom = "bar", fun.y = mean, position = "dodge") +
+#   stat_summary(geom = "errorbar", fun.data = mean_se, position = "dodge", fun.args = list(mult = 100)) +
+#   xlab("Optimizer") + ylab("Score") +
+#   scale_fill_brewer(palette="Blues") +
+#   theme_classic() +
+#   theme_bw() +
+#   scale_y_log10()
 
 ```
 
 ## Quality
-```{r quality, fig.width=12, fig.height=10}
+```{r quality, fig.width=12, fig.height=5}
+
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
 
 df_temp <- df %>%
-  mutate(quality = (optimal-final_score)/optimal) %>%
-  select(c("problem", "optimizer", "quality"))
+  mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+  # select(c("problem", "optimizer", "quality")) %>%
+  summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) %>%
+  arrange(problem_size)
+  
 
-plot_comb <- ggplot(df_temp, aes(x=optimizer, y=quality, group=problem)) +
-  geom_point(color = "black", size = 3.2) +
-  geom_point(aes(color=problem), size=3) +
-  geom_line(aes(color=problem), linetype="dotdash", alpha=0.7) +
-  xlab("Optimizer") + ylab("Quality") +
+df_temp$quality <- normalize(df_temp$quality)
+
+# print(df_temp)
+
+# brewer.pal(n = 8, name = "Set3")
+
+pd <- position_dodge(0.5)
+
+t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=-Inf, ymax=Inf)
+
+plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, colour=reorder(problem, problem_size), group=optimizer)) +
+
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
+  # geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="red",alpha=0.1,xmin=1.5,xmax=2.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
+  # geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="yellow",alpha=0.1,xmin=3.5,xmax=4.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
+  # geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="green",alpha=0.1,xmin=5.5,xmax=6.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
+  # geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="blue",alpha=0.1,xmin=7.5,xmax=8.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
+  # geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=9.5,xmax=11,inherit.aes = FALSE) +
+
+  geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
+  geom_point(color = "black", size = 3.2, position=pd) +
+  geom_point(aes(color=optimizer), size=3, position=pd) +
+  geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
+  xlab("Algorytm") + ylab("Jakosc") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
-  scale_y_log10() +
+  # scale_y_log10() +
   labs(color='Problem') +
   scale_color_brewer(palette="Set3")
 
 plot_comb
+
+ggsave("plots_res/final/opt_comp_quality.pdf", plot_comb, width=12, height=5)
 
 ```
 
 
 ## Time
 
-```{r time, fig.width=8, fig.height=5}
+```{r time, fig.width=12, fig.height=5}
 
 plots_vec <- vector('list', length(problems))
 
@@ -182,29 +217,86 @@ plots_vec <- vector('list', length(problems))
 df_temp <- df %>%
   filter(optimizer != "optimal") %>%
   transform(time_ms =  time_duration_ms/time_iterations) %>%
-  select(c("problem", "optimizer", "time_ms")) %>%
-  distinct(optimizer, problem, time_ms, .keep_all = TRUE)
+  # select(c("problem", "optimizer", "time_ms")) %>%
+  distinct(optimizer, problem, problem_size, time_ms, .keep_all = TRUE)
   # summarySE(measurevar="time_ms", groupvars=c("problem","optimizer"))
 
 # head(df_temp)
 
-plot_comb <- ggplot(df_temp, aes(x=optimizer, y=time_ms, group=problem)) +
-  geom_point(color = "black", size = 3.2) +
-  geom_point(aes(color=problem), size=3) +
-  geom_line(aes(color=problem), linetype="dotdash", alpha=0.7) +
-  xlab("Optimizer") + ylab("Time [ms]") +
+t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=0, ymax=Inf)
+
+# reorder(problem, -problem_size)
+# optimizer
+
+pd <- position_dodge(0.5)
+
+plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=time_ms, colour=reorder(problem, -problem_size), group=optimizer)) +
+  
+  geom_point(color = "black", size = 3.2, position=pd) +
+  geom_point(aes(color=optimizer), size=3, position=pd) +
+  geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
+  xlab("Algorytm") + ylab("Czas dzialania [ms]") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
-  scale_y_log10() +
+  scale_y_log10(label=scientific_10) +
+
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
+
   labs(color='Problem') +
   scale_color_brewer(palette="Set3")
 
 plot_comb
 
-ggsave("plots_res/alg_comp/opt_comp_time2.pdf", plot_comb, width=8, height=5)
+ggsave("plots_res/final/opt_comp_time.pdf", plot_comb, width=12, height=5)
+```
+
+## Efketywnosc w czasie
+
+```{r efwcz, fig.width=7, fig.height=4}
+
+df_temp <- df %>%
+  # filter(problem != "pr1002" | problem != "pcb442") %>%
+  transform(time_ms =  time_duration_ms/time_iterations) %>%
+  mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+  summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer", "time_ms")) %>%
+  select(c("problem", "problem_size", "quality", "optimizer", "time_ms")) %>%
+  arrange(problem_size)
+
+df_temp$quality <- normalize(df_temp$quality)
+
+# head(df_temp)
+
+scientific_10 <- function(x) {
+  parse(text=gsub("e", " %*% 10^", scales::scientific_format()(x)))
+}
+
+plot_steps <- ggplot(df_temp, aes(time_ms, quality, color=optimizer)) +
+  geom_jitter(alpha=0.8, size=2, position=position_jitterdodge()) +
+  xlab("Czas dzialania [ms]") +
+  ylab("Jakosc") +
+  theme_bw(
+    base_line_size = 1/10,
+    base_rect_size = 1/10
+  ) +
+  # scale_y_log10() +
+  scale_x_log10(label=scientific_10) +
+  # theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  # scale_x_continuous(label=scientific_10)
+
+  labs(color='Algorytm') +
+  scale_color_brewer(palette="Set3")
+
+plot_steps
+
+ggsave("plots_res/final/opt_comp_qual_time.pdf", plot_steps, width=7, height=5)
+
 ```
 
 ## Steps
@@ -233,32 +325,33 @@ ggsave("plots_res/alg_comp/opt_comp_time2.pdf", plot_comb, width=8, height=5)
 pd <- position_dodge(0.1)
 
 df_temp <- df %>%
-  select(c("problem", "optimizer", "steps")) %>%
+  # select(c("problem", "optimizer", "steps")) %>%
   filter(optimizer == "steepest" | optimizer == "greedy") %>%
-  summarySE(measurevar="steps", groupvars=c("problem","optimizer"))
+  summarySE(measurevar="steps", groupvars=c("problem", "problem_size","optimizer")) %>%
+  arrange(problem_size)
 
 df_temp$optimizer <- toupper(substr(df_temp$optimizer, 0, 1))
 df_temp$sd <- df_temp$sd * 3
 
 # head(df_temp)
 
-plot_comb <- ggplot(df_temp, aes(x=problem, y=steps, colour=optimizer, group=optimizer)) +
+plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=steps, colour=optimizer, group=optimizer)) +
   geom_errorbar(aes(ymin=steps-sd, ymax=steps+sd), width=.7, position=pd, color="black") +
   geom_line(position=pd, linetype="dotdash", alpha=0.7) +
   geom_point(position=pd, color = "black", size = 3.2) +
   geom_point(aes(color=optimizer), size=3, position=pd) +
-  xlab("Problem") + ylab("Number of steps") +
+  xlab("Problem") + ylab("Liczba krokow") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  scale_y_log10() +
-  labs(color='Optimizer')
+  theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
+  scale_y_log10(label=scientific_10) +
+  labs(color='Algorytm')
 
 plot_comb
 
-ggsave("plots_res/alg_comp/opt_comp_steps2.pdf", plot_comb, width=7, height=5)
+ggsave("plots_res/final/opt_comp_steps.pdf", plot_comb, width=7, height=5)
 
 ```
 
@@ -302,74 +395,54 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 }
 ```
 
-```{r seen, fig.width=12, fig.height=8}
-
-# df_temp <- df %>% select(c("problem", "optimizer", "seen_solutions")) %>% summarySE(measurevar="seen_solutions", groupvars=c("optimizer","problem"))
-
-# df_temp
-
-# pd <- position_dodge(0.1)
-# 
-# plot_seen <- ggplot(
-#     df_temp,
-#     aes(
-#      x = problem,
-#      y = seen_solutions,
-#      color = optimizer,
-#      group = optimizer
-#     )) + geom_errorbar(aes(ymin=seen_solutions-se, ymax=seen_solutions+se), colour="black", width=.1, position=pd) + 
-#          geom_line(position=pd) +
-#          geom_point(position=pd, size=3, shape=21, fill="white")
-# 
-# plot_seen
-
-# plots_vec <- vector('list', length(problems))
-# 
-# i<-0
-# for(p in problems){
-#   df_temp <- df %>%
-#     filter(problem == p) %>%
-#     select(c("optimizer", "seen_solutions")) %>%
-#     filter(optimizer != "optimal") %>%
-#     summarySE(measurevar="seen_solutions", groupvars=c("optimizer"))
-#   
-#   df_temp$opt <- c("G", "H", "R", "RW", "S")
-# 
-#   plot_ <- ggplot(
-#     df_temp,
-#     aes(
-#       x=opt,
-#       y = seen_solutions)) + xlab("Optimizer") + ylab("Seen solutions") + 
-#                              geom_errorbar(aes(ymin=seen_solutions-se, ymax=seen_solutions+se), colour="blue", width=.1, position=pd) +
-#                              geom_line(position=pd, alpha=0.2) +
-#                              geom_point(position=pd, size=3, shape=21, fill="white")
-# 
-#   i<-i+1
-#   plots_vec[[i]] <- plot_
-# }
-# 
-# plot_comb <- plot_grid(plotlist=plots_vec, nrow=4, ncol=3)
-# plot_comb
+```{r seen, fig.width=8, fig.height=5}
 
 df_temp <- df %>%
-  select(c("problem", "optimizer", "seen_solutions")) %>%
-  filter(optimizer != "optimal")
+  select(c("problem", "problem_size", "optimizer", "seen_solutions")) %>%
+  filter(optimizer != "optimal") %>%
+  summarySE(measurevar="seen_solutions", groupvars=c("problem", "problem_size","optimizer"))
 
-plot_steps <- ggplot(
-    df_temp,
-    aes(
-      factor(optimizer),
-      seen_solutions,
-      fill=optimizer)) + geom_boxplot(size=0.1) + xlab("Optimizer") + ylab("Seen solutions") + facet_wrap(~problem, scales="free_y") +
+pd <- position_dodge(0.5)
+
+plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=seen_solutions, colour=reorder(problem, problem_size), group=optimizer)) +
+
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
+
+  geom_errorbar(aes(ymin=seen_solutions-sd, ymax=seen_solutions+sd), width=.7, position=pd, color="black", size=.1) +
+  geom_point(color = "black", size = 3.2, position=pd) +
+  geom_point(aes(color=optimizer), size=3, position=pd) +
+  geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
+  xlab("Algorytm") + ylab("Liczba ocenionych rozwiazan") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
+  scale_y_log10(label=scientific_10) +
+  labs(color='Algorytm') +
+  scale_color_brewer(palette="Set3")
 
-plot_steps
+plot_comb
 
-# ggsave("plots_res/alg_comp/opt_comp_seen.pdf", plot_steps, width=12, height=8)
+# plot_steps <- ggplot(
+#     df_temp,
+#     aes(
+#       factor(optimizer),
+#       seen_solutions,
+#       fill=optimizer)) + geom_boxplot(size=0.1) + xlab("Optimizer") + ylab("Seen solutions") + facet_wrap(~problem, scales="free_y") +
+#   theme_bw(
+#     base_line_size = 1/10,
+#     base_rect_size = 1/10
+#   ) +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# 
+# plot_steps
+
+ggsave("plots_res/final/opt_comp_seen.pdf", plot_comb, width=12, height=8)
 
 ```
 
@@ -382,23 +455,24 @@ plot_steps
 df_temp <- df %>%
   # filter(problem %in% selected_problems) %>%
   filter(optimizer == "steepest" | optimizer == "greedy") %>%
-  select(c("problem", "optimizer", "start_score", "final_score"))
+  select(c("problem", "problem_size", "optimizer", "start_cost", "final_cost"))
 
 # df_temp
 
-plot_steps <- ggplot(df_temp, aes(start_score, final_score, color=optimizer)) +
-  geom_jitter(alpha=0.8) +
-  xlab("Start score") +
-  ylab("Final score") +
-  facet_wrap(~problem, scales="free") + 
+plot_steps <- ggplot(df_temp, aes(start_cost, final_cost, color=optimizer)) +
+  geom_jitter(alpha=0.6) +
+  xlab("Koszt poczatkowy") +
+  ylab("Koszt koncowy") +
+  facet_wrap(~reorder(problem, problem_size), scales="free") + 
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
-  )
+  ) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
 
 plot_steps
 
-ggsave("plots_res/start_vs_end.pdf", plot_steps, width=12, height=8)
+ggsave("plots_res/final/start_vs_end.pdf", plot_steps, width=12, height=8)
 
 ```
 
@@ -413,7 +487,7 @@ get_vs <- function(df){
 
   vmin <- rep(0, rows)
   vmean <- rep(0, rows)
-  v <- as.numeric(df$final_score)
+  v <- as.numeric(df$quality)
   
   for(i in seq_along(v)){
     vmin[i] <- min(v[1:i])
@@ -430,7 +504,8 @@ get_vs <- function(df){
 for(p in problems){
   df_temp <- df %>%
     filter(problem == p) %>%
-    select(c("problem", "optimizer", "final_score"))
+    mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+    select(c("problem", "optimizer", "quality"))
   
   df_temp_S <- df_temp %>%
     filter(optimizer == "steepest")
@@ -443,16 +518,16 @@ for(p in problems){
   
   df_temp <- rbind(df_temp_S, df_temp_G)
   
-  colors <- c("Min" = '#F8766D', "Mean" = '#00BFC4')
+  colors <- c("Maksymalna" = '#F8766D', "Srednia" = '#00BFC4')
 
   plot_temp <- ggplot(df_temp) +
-    geom_point(aes(x=iters, y=vmin, color='Min')) +
-    geom_line(aes(x=iters, y=vmin, color='Min'), alpha=0.5) +
-    geom_point(aes(x=iters, y=vmean, color='Mean')) +
-    geom_line(aes(x=iters, y=vmean, color='Mean'), alpha=0.5) +
-    labs(x = "Iteration",
-         y = "Score",
-         color = "Legend") +
+    geom_point(aes(x=iters, y=vmin, color='Maksymalna')) +
+    geom_line(aes(x=iters, y=vmin, color='Maksymalna'), alpha=0.5) +
+    geom_point(aes(x=iters, y=vmean, color='Srednia')) +
+    geom_line(aes(x=iters, y=vmean, color='Srednia'), alpha=0.5) +
+    labs(x = "Iteracja",
+         y = "Jakosc",
+         color = "Legenda wartosci") +
     scale_color_manual(values = colors) +
     facet_wrap(~optimizer) +
     theme_bw(
@@ -462,7 +537,7 @@ for(p in problems){
 
   print(plot_temp)
   
-  ggsave(sprintf("plots_res/mean_min_score_%s.pdf", p), plot_temp, width = 8, height = 4)
+  ggsave(sprintf("plots_res/final/all_mean_min/mean_min_score_%s.pdf", p), plot_temp, width = 8, height = 4)
 }
 
 ```
