@@ -20,6 +20,7 @@ library(dplyr)
 library(wesanderson)
 library(tidyr)
 library("RColorBrewer")
+library(sets)
 ```
 
 
@@ -146,7 +147,7 @@ df_temp <- df %>%
 
 df_temp$quality <- normalize(df_temp$quality)
 
-print(df_temp)
+# print(df_temp)
 
 # brewer.pal(n = 8, name = "Set3")
 
@@ -166,14 +167,14 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, co
   geom_point(color = "black", size = 3.2, position=pd) +
   geom_point(aes(color=optimizer), size=3, position=pd) +
   geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
-  xlab("Algorytm") + ylab("Jakosc") +
+  xlab("Problem") + ylab("Jakosc") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
   # scale_y_log10() +
-  labs(color='Problem') +
+  labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_comb
@@ -232,7 +233,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=time_ms, co
   geom_point(color = "black", size = 3.2, position=pd) +
   geom_point(aes(color=optimizer), size=3, position=pd) +
   geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
-  xlab("Algorytm") + ylab("Czas dzialania [ms]") +
+  xlab("Problem") + ylab("Czas dzialania [ms]") +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
@@ -246,7 +247,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=time_ms, co
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
 
-  labs(color='Problem') +
+  labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_comb
@@ -495,7 +496,7 @@ ggsave("plots_res/final/start_vs_end.pdf", plot_steps, width=12, height=8)
 
 ## Jakosc w czasie
 
-```{r pk, fig.width=8, fig.height=4}
+```{r pk, fig.width=10, fig.height=7}
 
 
 get_vs <- function(df){
@@ -506,7 +507,7 @@ get_vs <- function(df){
   v <- as.numeric(df$quality)
   
   for(i in seq_along(v)){
-    vmin[i] <- min(v[1:i])
+    vmin[i] <- max(v[1:i])
     vmean[i] <- mean(v[1:i])
   }
   
@@ -522,6 +523,8 @@ for(p in problems){
     filter(problem == p) %>%
     mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
     select(c("problem", "optimizer", "quality"))
+  
+  df_temp$quality <- normalize(df_temp$quality)
   
   df_temp_S <- df_temp %>%
     filter(optimizer == "steepest")
@@ -545,7 +548,7 @@ for(p in problems){
          y = "Jakosc",
          color = "Legenda wartosci") +
     scale_color_manual(values = colors) +
-    facet_wrap(~optimizer) +
+    facet_wrap(~optimizer, ncol=1) +
     theme_bw(
       base_line_size = 1/10,
       base_rect_size = 1/10
@@ -559,7 +562,40 @@ for(p in problems){
 
 ```
 
+## 5
 
+```{r pk5, fig.width=8, fig.height=4}
+
+parse <- function(x){
+  lapply(strsplit(x, " "), as.set)
+}
+
+for(p in problems){
+  df_temp <- df %>%
+    filter(problem == p) %>% ## dodac optimal !!!
+    mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+    mutate(similarity = set_similarity(parse(final_path), parse(optimal_path))) %>%
+    select(c("problem", "optimizer", "quality"))
+  
+  df_temp$quality <- normalize(df_temp$quality)
+
+  plot_temp <- ggplot(df_temp, aes(x=quality, y=similarity, color=optimizer)) +
+    geom_jitter(alpha=0.6)
+    labs(x = "Jakosc",
+         y = "Podobienstwo") +
+    theme_bw(
+      base_line_size = 1/10,
+      base_rect_size = 1/10
+    ) +
+  scale_color_brewer(palette="Set2")
+
+  print(plot_temp)
+  
+  ggsave(sprintf("plots_res/final/all_mean_min/ex5_%s.pdf", p), plot_temp, width = 8, height = 4)
+
+}
+
+```
 
 
 
