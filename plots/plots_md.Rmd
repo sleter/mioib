@@ -20,14 +20,16 @@ library(dplyr)
 library(wesanderson)
 library(tidyr)
 library("RColorBrewer")
-library(sets)
+library(VGAM)
+library(tibble)
+library(ramify)
 ```
 
 
 ## Load data
 
 ```{r load}
-df <- read.csv("results.csv")
+df <- as.tibble(read.csv("results.csv"))
 problems = unique(df$problem)
 df <- df %>% arrange(problem_size)
 df
@@ -137,49 +139,55 @@ normalize <- function(x) {
 }
 
 df_temp <- df %>%
-  mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+  mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
   # select(c("problem", "optimizer", "quality")) %>%
-  # summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) %>%
-  group_by(problem, problem_size, optimizer) %>%
-  top_n(n=1, wt=quality) #%>%
+  summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) #%>%
+  # group_by(problem, problem_size, optimizer) %>%
+  # top_n(n=1, wt=-quality) #%>%
   # arrange(problem_size)
-  
-
-df_temp$quality <- normalize(df_temp$quality)
 
 # print(df_temp)
 
+# df_temp$quality <- normalize(df_temp$quality)
+
+df_temp <- df_temp %>%
+  filter(optimizer != "optimal")
+
+df_temp$sd <- df_temp$sd * 3
+
+print(df_temp)
+
 # brewer.pal(n = 8, name = "Set3")
 
-pd <- position_dodge(0.5)
-
-t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=-Inf, ymax=Inf)
-
-plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, colour=reorder(problem, problem_size), group=optimizer)) +
-
-  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
-  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
-  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
-  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
-  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
-
-  # geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
-  geom_point(color = "black", size = 3.2, position=pd) +
-  geom_point(aes(color=optimizer), size=3, position=pd) +
-  geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
-  xlab("Problem") + ylab("Jakosc") +
-  theme_bw(
-    base_line_size = 1/10,
-    base_rect_size = 1/10
-  ) +
-  # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
-  # scale_y_log10() +
-  labs(color='Algorytm') +
-  scale_color_brewer(palette="Set2")
-
-plot_comb
-
-ggsave("plots_res/final/opt_comp_quality_best.pdf", plot_comb, width=12, height=5)
+# pd <- position_dodge(0.5)
+# 
+# t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=-Inf, ymax=Inf)
+# 
+# plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, colour=reorder(problem, problem_size), group=optimizer)) +
+# 
+#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
+#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
+#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
+#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
+#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
+# 
+#   geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
+#   geom_point(color = "black", size = 3.2, position=pd) +
+#   geom_point(aes(color=optimizer), size=3, position=pd) +
+#   geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
+#   xlab("Problem") + ylab("Jakosc") +
+#   theme_bw(
+#     base_line_size = 1/10,
+#     base_rect_size = 1/10
+#   ) +
+#   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
+#   # scale_y_log10() +
+#   labs(color='Algorytm') +
+#   scale_color_brewer(palette="Set2")
+# 
+# plot_comb
+# 
+# ggsave("plots_res/final/opt_comp_quality.pdf", plot_comb, width=12, height=5)
 
 ```
 
@@ -262,12 +270,12 @@ ggsave("plots_res/final/opt_comp_time.pdf", plot_comb, width=12, height=5)
 df_temp <- df %>%
   # filter(problem != "pr1002" | problem != "pcb442") %>%
   transform(time_ms =  time_duration_ms/time_iterations) %>%
-  mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+  mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
   summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer", "time_ms")) %>%
   select(c("problem", "problem_size", "quality", "optimizer", "time_ms")) %>%
   arrange(problem_size)
 
-df_temp$quality <- normalize(df_temp$quality)
+# df_temp$quality <- normalize(df_temp$quality)
 
 # head(df_temp)
 
@@ -464,32 +472,45 @@ for(p in problems){
 }
 ```
 
-```{r pk, fig.width=12, fig.height=8}
+```{r pk, fig.width=10, fig.height=8}
 
 # selected_problems = setdiff(problems, c("kroA100", "kroC100"))
 
+
 df_temp <- df %>%
+  filter(problem != "pcb442" & problem != "pr1002" ) %>%
   # filter(problem %in% selected_problems) %>%
+  mutate(final_quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
+  mutate(start_quality = normalize((optimal_cost-start_cost)/optimal_cost)) %>%
   filter(optimizer == "steepest" | optimizer == "greedy") %>%
-  select(c("problem", "problem_size", "optimizer", "start_cost", "final_cost"))
+  select(c("problem", "problem_size", "optimizer", "start_quality", "final_quality"))
 
-# df_temp
+# colnames(df_temp)
+# 
+# facetlims = df_temp %>% 
+#   group_by(problem) %>% 
+#   summarise(min = min(start_quality, final_quality), max = max(start_quality, final_quality)) %>%
+#   gather(range, start_quality, -problem) %>%
+#   mutate(final_quality = start_quality, range = NULL)
 
-plot_steps <- ggplot(df_temp, aes(start_cost, final_cost, color=optimizer)) +
-  geom_jitter(alpha=0.6) +
-  xlab("Koszt poczatkowy") +
-  ylab("Koszt koncowy") +
+plot_steps <- ggplot(df_temp, aes(start_quality, final_quality, color=optimizer)) +
+  geom_jitter(alpha=0.5) +
+  xlab("Jakosc poczatkowa") +
+  ylab("Jakosc koncowa") +
+  
   facet_wrap(~reorder(problem, problem_size), scales="free") + 
+  # geom_blank(data = facetlims) +
   theme_bw(
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_steps
 
-ggsave("plots_res/final/start_vs_end.pdf", plot_steps, width=12, height=8)
+ggsave("plots_res/final/start_vs_end.pdf", plot_steps, width=10, height=8)
 
 ```
 
@@ -521,10 +542,10 @@ get_vs <- function(df){
 for(p in problems){
   df_temp <- df %>%
     filter(problem == p) %>%
-    mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
+    mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
     select(c("problem", "optimizer", "quality"))
   
-  df_temp$quality <- normalize(df_temp$quality)
+  # df_temp$quality <- normalize(df_temp$quality)
   
   df_temp_S <- df_temp %>%
     filter(optimizer == "steepest")
@@ -548,6 +569,7 @@ for(p in problems){
          y = "Jakosc",
          color = "Legenda wartosci") +
     scale_color_manual(values = colors) +
+    ylim(c(NA, 1)) +
     facet_wrap(~optimizer, ncol=1) +
     theme_bw(
       base_line_size = 1/10,
@@ -567,35 +589,46 @@ for(p in problems){
 ```{r pk5, fig.width=8, fig.height=4}
 
 parse <- function(x){
-  lapply(strsplit(x, " "), as.set)
+  sapply(x, function(x){
+    stri <- strsplit(x, " ")
+    x <- as.numeric(stri[[1]])
+    id_x <- match(0, x)
+    left <- x[1:id_x-1]
+    right <- x[id_x:length(x)]
+    vec <- c(right, left)
+    return(vec[!is.na(vec)])
+  })
 }
 
 for(p in problems){
   df_temp <- df %>%
-    filter(problem == p) %>% ## dodac optimal !!!
-    mutate(quality = (optimal_cost-final_cost)/optimal_cost) %>%
-    mutate(similarity = set_similarity(parse(final_path), parse(optimal_path))) %>%
-    select(c("problem", "optimizer", "quality"))
-  
-  df_temp$quality <- normalize(df_temp$quality)
+    filter(optimizer != "optimal") %>%
+    filter(problem == p) %>%
+    mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
+    mutate(similarity = kendall.tau(parse(final_path), parse(optimal_path))) %>%
+    # mutate(similarity = simi(parse(final_path), parse(optimal_path))) %>%
+    select(c("problem", "optimizer", "quality", "similarity"))
+
 
   plot_temp <- ggplot(df_temp, aes(x=quality, y=similarity, color=optimizer)) +
-    geom_jitter(alpha=0.6)
-    labs(x = "Jakosc",
-         y = "Podobienstwo") +
+    geom_jitter(alpha=0.6) +
+    xlab("Jakosc poczatkowa") +
+    ylab("Jakosc koncowa") +
     theme_bw(
       base_line_size = 1/10,
       base_rect_size = 1/10
     ) +
-  scale_color_brewer(palette="Set2")
+    labs(color='Algorytm') +
+    scale_color_brewer(palette="Set2")
 
   print(plot_temp)
-  
-  ggsave(sprintf("plots_res/final/all_mean_min/ex5_%s.pdf", p), plot_temp, width = 8, height = 4)
+
+  ggsave(sprintf("plots_res/final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4)
 
 }
 
 ```
+
 
 
 
