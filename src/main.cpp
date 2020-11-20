@@ -11,6 +11,23 @@
 #include <math.h>
 #include <list>
 
+using path_t = std::vector<int>;
+
+template <typename T>
+std::string as_string(const std::vector<T> &vec)
+{
+    std::ostringstream os;
+    for (auto &i : vec)
+        os << i << " ";
+
+    std::string result = os.str();
+
+    if (result.size() > 0)
+        result.pop_back();
+
+    return result;
+}
+
 std::default_random_engine rd{static_cast<long unsigned int>(time(0))};
 std::mt19937 gen(rd());
 
@@ -38,16 +55,26 @@ struct optimization_header
     std::string optimizer;
     size_t time_iterations = 0;
     long time_duration_ms = 0;
-    uint32_t optimal_cost;
+    uint32_t optimal_cost = 0;
+    path_t optimal_path;
 
-    optimization_header &with_names(const std::string &problem, const size_t problem_size, const std::string &optimizer, const uint32_t optimal_cost)
+    optimization_header &with_names(const std::string &problem, const size_t problem_size, const std::string &optimizer, const uint32_t optimal_cost, const path_t &optimal_path)
     {
         this->problem = problem;
         this->problem_size = problem_size;
         this->optimizer = optimizer;
         this->optimal_cost = optimal_cost;
+        this->optimal_path = optimal_path;
         return *this;
     }
+
+    optimization_header(const std::string &problem, const uint32_t problem_size, const std::string &optimizer, const uint32_t optimal_cost, const path_t &optimal_path) : problem(problem),
+                                                                                                                                       optimizer(optimizer),
+                                                                                                                                       time_iterations(0),
+                                                                                                                                       problem_size(problem_size),
+                                                                                                                                       optimal_cost(optimal_cost),
+                                                                                                                                       optimal_path(optimal_path),
+                                                                                                                                       time_duration_ms(0) {}
 
     optimization_header(const std::string &problem, const std::string &optimizer) : problem(problem), optimizer(optimizer), time_iterations(0), time_duration_ms(0) {}
 
@@ -64,14 +91,14 @@ struct optimization_header
     std::string to_csv() const
     {
         std::stringstream ss;
-        ss << problem << ',' << problem_size <<',' << optimizer << ',' << time_iterations << ',' << time_duration_ms << ',' << time_ms() << ',' << optimal_cost;
+        ss << problem << ',' << problem_size << ',' << optimizer << ',' << time_iterations << ',' << time_duration_ms << ',' << time_ms() << ',' << optimal_cost << ',' << as_string(optimal_path);
         return ss.str();
     }
 
     static const std::string csv_header;
 };
 
-const std::string optimization_header::csv_header = "problem,problem_size,optimizer,time_iterations,time_duration_ms,time_ms,optimal_cost";
+const std::string optimization_header::csv_header = "problem,problem_size,optimizer,time_iterations,time_duration_ms,time_ms,optimal_cost,optimal_path";
 
 struct optimization_step
 {
@@ -92,17 +119,20 @@ struct optimization_result
     uint32_t start_cost = 0;
     uint32_t final_cost = 0;
 
+    path_t final_path;
+
     size_t steps = 0;
     size_t seen_solutions = 0;
 
     optimization_result(const uint32_t cost) : start_cost(cost), final_cost(cost) {}
+    optimization_result(const uint32_t cost, path_t final_path) : start_cost(cost), final_cost(cost), final_path(final_path) {}
 
     optimization_result() {}
 
     std::string to_csv() const
     {
         std::stringstream ss;
-        ss << start_cost << ',' << final_cost << ',' << steps << ',' << seen_solutions;
+        ss << start_cost << ',' << final_cost << ',' << steps << ',' << seen_solutions << ',' << as_string(final_path);
 
         return ss.str();
     }
@@ -110,7 +140,7 @@ struct optimization_result
     static const std::string csv_header;
 };
 
-const std::string optimization_result::csv_header = "start_cost,final_cost,steps,seen_solutions";
+const std::string optimization_result::csv_header = "start_cost,final_cost,steps,seen_solutions,final_path";
 
 struct optimization_raport
 {
@@ -132,7 +162,7 @@ struct optimization_raport
 
 const std::string optimization_raport::csv_header = optimization_header::csv_header + ',' + optimization_result::csv_header;
 
-typedef std::pair<int,int> coords;
+typedef std::pair<int, int> coords;
 
 uint32_t euclidean_distance(const coords &from, const coords &to)
 {
@@ -212,7 +242,7 @@ struct cost_matrix
     uint32_t &operator[](std::pair<size_t, size_t> &&pair) { return mat[pair.first][pair.second]; }
     const uint32_t &operator[](std::pair<size_t, size_t> &&pair) const { return mat[pair.first][pair.second]; }
 
-    uint32_t compute_cost(std::vector<int> &v) const
+    uint32_t compute_cost(path_t &v) const
     {
         uint32_t cost = mat[v[0]][v[v.size() - 1]];
         for (int i = 1; i < v.size(); ++i)
@@ -222,7 +252,7 @@ struct cost_matrix
         return cost;
     }
 
-    uint32_t evaluate_possible_cost(std::vector<int> &v, uint32_t cost_before, size_t x, size_t y) const
+    uint32_t evaluate_possible_cost(path_t &v, uint32_t cost_before, size_t x, size_t y) const
     {
         size_t x_prev = x - 1;
         if (x == 0) // Fallback to the vector end
@@ -252,9 +282,9 @@ void shuffle(std::vector<T> &v)
     }
 }
 
-std::vector<int> random_vector(size_t size)
+path_t random_vector(size_t size)
 {
-    std::vector<int> v(size);
+    path_t v(size);
     std::iota(v.begin(), v.end(), 0);
     shuffle(v);
     return v;
@@ -272,7 +302,7 @@ void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
 }
 
 /** Returns the best cost from all possible neighbours and permutated vector v as referrence (if better solution was found)*/
-optimization_step steepest_optimizer_step(const cost_matrix &mat, std::vector<int> &v, const uint32_t cost)
+optimization_step steepest_optimizer_step(const cost_matrix &mat, path_t &v, const uint32_t cost)
 {
     bool found = false;
     size_t best_from, best_to;
@@ -306,7 +336,7 @@ optimization_step steepest_optimizer_step(const cost_matrix &mat, std::vector<in
 }
 
 /** Returns the first best cost and permutated vector v as referrence (if better solution was found)*/
-optimization_step greedy_optimizer_step(const cost_matrix &mat, std::vector<int> &v, const uint32_t prev_cost)
+optimization_step greedy_optimizer_step(const cost_matrix &mat, path_t &v, const uint32_t prev_cost)
 {
     auto result = optimization_step(prev_cost);
 
@@ -327,9 +357,9 @@ optimization_step greedy_optimizer_step(const cost_matrix &mat, std::vector<int>
     return result.update_cost(prev_cost);
 }
 
-auto local_search_optimizer(const std::function<optimization_step(const cost_matrix &mat, std::vector<int> &v, const uint32_t cost)> step)
+auto local_search_optimizer(const std::function<optimization_step(const cost_matrix &mat, path_t &v, const uint32_t cost)> step)
 {
-    return [step](const cost_matrix &mat, std::vector<int> &v, const uint32_t cost) -> optimization_result {
+    return [step](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
         optimization_result result(cost);
 
         while (true)
@@ -344,15 +374,16 @@ auto local_search_optimizer(const std::function<optimization_step(const cost_mat
             }
             else
             {
+                result.final_path = std::vector<int>(v);
                 return result;
             }
         }
     };
 }
 
-auto time_constrained_optimizer(long limit_ms, const std::function<optimization_step(const cost_matrix &mat, std::vector<int> &v, const uint32_t cost)> step)
+auto time_constrained_optimizer(long limit_ms, const std::function<optimization_step(const cost_matrix &mat, path_t &v, const uint32_t cost)> step)
 {
-    return [limit_ms, step](const cost_matrix &mat, std::vector<int> &v, const uint32_t cost) -> optimization_result {
+    return [limit_ms, step](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
         optimization_result result(cost);
 
         long elapsed = 0;
@@ -371,17 +402,18 @@ auto time_constrained_optimizer(long limit_ms, const std::function<optimization_
             elapsed = as_milliseconds(now() - start_time);
         } while (elapsed < limit_ms);
 
+        result.final_path = std::vector<int>(v);
         return result;
     };
 }
 
-optimization_step random_step(const cost_matrix &mat, std::vector<int> &v, const uint32_t prev_cost)
+optimization_step random_step(const cost_matrix &mat, path_t &v, const uint32_t prev_cost)
 {
     shuffle(v);
     return optimization_step(mat.compute_cost(v), 1);
 }
 
-optimization_step random_walk_step(const cost_matrix &mat, std::vector<int> &v, const uint32_t prev_cost)
+optimization_step random_walk_step(const cost_matrix &mat, path_t &v, const uint32_t prev_cost)
 {
     size_t from = random_index(0, v.size() - 1);
     size_t to = from;
@@ -396,7 +428,7 @@ optimization_step random_walk_step(const cost_matrix &mat, std::vector<int> &v, 
     return optimization_step(mat.compute_cost(v), 1);
 }
 
-optimization_result heuristic_optimizer(const cost_matrix &mat, std::vector<int> &v, const uint32_t cost)
+optimization_result heuristic_optimizer(const cost_matrix &mat, path_t &v, const uint32_t cost)
 {
     optimization_result result(cost);
 
@@ -423,6 +455,7 @@ optimization_result heuristic_optimizer(const cost_matrix &mat, std::vector<int>
         }
     }
 
+    result.final_path = std::vector<int>(v);
     result.final_cost = mat.compute_cost(v);
     return result;
 }
@@ -431,11 +464,11 @@ struct tsp_optimizer
 {
     const std::string name;
     const bool shuffle;
-    const std::function<optimization_result(const cost_matrix &, std::vector<int> &, const uint32_t)> optimizer;
+    const std::function<optimization_result(const cost_matrix &, path_t &, const uint32_t)> optimizer;
 
-    tsp_optimizer(std::string name, bool shuffle, std::function<optimization_result(const cost_matrix &, std::vector<int> &, const uint32_t)> optimizer) : name(name), shuffle(shuffle), optimizer(optimizer) {}
+    tsp_optimizer(std::string name, bool shuffle, std::function<optimization_result(const cost_matrix &, path_t &, const uint32_t)> optimizer) : name(name), shuffle(shuffle), optimizer(optimizer) {}
 
-    const optimization_result operator()(const cost_matrix &mat, std::vector<int> &v, const uint32_t prev_cost) const
+    const optimization_result operator()(const cost_matrix &mat, path_t &v, const uint32_t prev_cost) const
     {
         return optimizer(mat, v, prev_cost);
     }
@@ -448,7 +481,7 @@ class tsp
     const size_t max_iterations;
     const long limit_ms;
 
-    long run_experiment(const cost_matrix &mat, std::pair<std::string,u_int32_t> &problem, const tsp_optimizer &optimizer)
+    long run_experiment(const cost_matrix &mat, std::tuple<std::string, u_int32_t, path_t> &problem, const tsp_optimizer &optimizer)
     {
         auto vector = random_vector(mat.problem_size);
         auto header = measure_time(mat, optimizer, vector);
@@ -459,7 +492,7 @@ class tsp
 
         for (size_t i = 0; i < iterations; ++i)
         {
-            optimization_raport raport(header.with_names(problem.first, vector.size(), optimizer.name, problem.second));
+            optimization_raport raport(header.with_names(std::get<0>(problem), vector.size(), optimizer.name, std::get<1>(problem), std::get<2>(problem)));
             if (optimizer.shuffle)
                 shuffle(vector);
 
@@ -472,7 +505,7 @@ class tsp
         return header.time_ms();
     }
 
-    optimization_header measure_time(const cost_matrix &mat, const tsp_optimizer &optimizer, std::vector<int> &v)
+    optimization_header measure_time(const cost_matrix &mat, const tsp_optimizer &optimizer, path_t &v)
     {
         long elapsed = 0;
         uint32_t iteration = 0;
@@ -496,7 +529,12 @@ class tsp
 public:
     tsp(size_t iterations, long limit_ms) : max_iterations(iterations), limit_ms(limit_ms) {}
 
-    void run_experiments(const cost_matrix &mat, std::pair<std::string,u_int32_t> &&problem)
+    void add_optimal_tour(const std::string &problem, const uint32_t problem_size, const std::pair<uint32_t, path_t> &optimal)
+    {
+        results.emplace_back(optimization_header(problem, problem_size, "optimal", optimal.first, optimal.second), optimization_result(optimal.first, optimal.second));
+    }
+
+    void run_experiments(const cost_matrix &mat, std::tuple<std::string, u_int32_t, path_t> &&problem)
     {
         // tsp_optimizer("random", false, random_optimizer)};
         long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
@@ -528,16 +566,16 @@ const std::string file_name(const std::string path)
     return std::string(matches[matches.size() - 1]);
 }
 
-const uint32_t optimal_tour(const cost_matrix &mat, std::string path)
+const std::pair<uint32_t, path_t> optimal_tour(const cost_matrix &mat, std::string path)
 {
     std::string opt_tour = ".opt.tour";
     std::string optimal_solution_path = path;
     optimal_solution_path.replace(optimal_solution_path.find(".tsp"), opt_tour.length(), opt_tour);
 
-    std::vector<int> vec;
+    path_t vec;
     std::ifstream file(optimal_solution_path);
     if (!file.good())
-        return 0;
+        return std::make_pair(0, vec);
 
     if (file.is_open())
     {
@@ -567,11 +605,11 @@ const uint32_t optimal_tour(const cost_matrix &mat, std::string path)
         file.close();
 
         uint32_t cost = mat.compute_cost(vec);
-        return cost;
+        return std::make_pair(cost, vec);
     }
     else
     {
-        return 0;
+        return std::make_pair(0, vec);
     }
 }
 
@@ -599,14 +637,15 @@ int main(int argc, char *argv[])
         const auto mat = cost_matrix(coords);
         auto v = random_vector(mat.problem_size);
 
-        uint32_t optimal_cost = optimal_tour(mat, path);
-        if (optimal_cost == 0)
+        std::pair<uint32_t, path_t> optimal = optimal_tour(mat, path);
+        if (optimal.first == 0)
         {
             std::cout << "Cannot find optimal file for TSP " << path << '\n';
             return -1;
         }
 
-        problems.run_experiments(mat, {name, optimal_cost});
+        problems.add_optimal_tour(name, v.size(), optimal);
+        problems.run_experiments(mat, {name, optimal.first, optimal.second});
     }
 
     std::ofstream file;
