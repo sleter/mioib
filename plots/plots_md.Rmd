@@ -141,9 +141,9 @@ normalize <- function(x) {
 df_temp <- df %>%
   mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
   # select(c("problem", "optimizer", "quality")) %>%
-  summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) #%>%
-  # group_by(problem, problem_size, optimizer) %>%
-  # top_n(n=1, wt=-quality) #%>%
+  # summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) #%>%
+  group_by(problem, problem_size, optimizer) %>%
+  top_n(n=1, wt=quality) #%>%
   # arrange(problem_size)
 
 # print(df_temp)
@@ -153,41 +153,41 @@ df_temp <- df %>%
 df_temp <- df_temp %>%
   filter(optimizer != "optimal")
 
-df_temp$sd <- df_temp$sd * 3
+# df_temp$sd <- df_temp$sd * 3
 
-print(df_temp)
+# print(df_temp)
 
 # brewer.pal(n = 8, name = "Set3")
 
-# pd <- position_dodge(0.5)
-# 
-# t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=-Inf, ymax=Inf)
-# 
-# plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, colour=reorder(problem, problem_size), group=optimizer)) +
-# 
-#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
-#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
-#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
-#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
-#   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
-# 
-#   geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
-#   geom_point(color = "black", size = 3.2, position=pd) +
-#   geom_point(aes(color=optimizer), size=3, position=pd) +
-#   geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
-#   xlab("Problem") + ylab("Jakosc") +
-#   theme_bw(
-#     base_line_size = 1/10,
-#     base_rect_size = 1/10
-#   ) +
-#   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
-#   # scale_y_log10() +
-#   labs(color='Algorytm') +
-#   scale_color_brewer(palette="Set2")
-# 
-# plot_comb
-# 
-# ggsave("plots_res/final/opt_comp_quality.pdf", plot_comb, width=12, height=5)
+pd <- position_dodge(0.5)
+
+t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=-Inf, ymax=Inf)
+
+plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, colour=reorder(problem, problem_size), group=optimizer)) +
+
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
+
+  # geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
+  geom_point(color = "black", size = 3.2, position=pd) +
+  geom_point(aes(color=optimizer), size=3, position=pd) +
+  geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
+  xlab("Problem") + ylab("Jakosc") +
+  theme_bw(
+    base_line_size = 1/10,
+    base_rect_size = 1/10
+  ) +
+  # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
+  # scale_y_log10() +
+  labs(color='Algorytm') +
+  scale_color_brewer(palette="Set2")
+
+plot_comb
+
+ggsave("plots_res/final/opt_comp_quality_best.pdf", plot_comb, width=12, height=5)
 
 ```
 
@@ -612,8 +612,8 @@ for(p in problems){
 
   plot_temp <- ggplot(df_temp, aes(x=quality, y=similarity, color=optimizer)) +
     geom_jitter(alpha=0.6) +
-    xlab("Jakosc poczatkowa") +
-    ylab("Jakosc koncowa") +
+    xlab("Jakosc") +
+    ylab("Podobienstwo") +
     theme_bw(
       base_line_size = 1/10,
       base_rect_size = 1/10
