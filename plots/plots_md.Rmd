@@ -13,6 +13,7 @@ knitr::opts_chunk$set(
 
 ## Load libraries
 ```{r load_test, error=FALSE, warning=FALSE}
+library(sets)
 library(ggplot2)
 library(cowplot)
 library(dbplyr)
@@ -687,43 +688,90 @@ parse2 <- function(x){
 
 ```{r lala3}
 library(purrr)
-# install.packages("sets")
-library(sets)
+
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
 
 parse2 <- function(x){
-    stri <- strsplit(x, " ")
-    x <- as.numeric(stri[[1]])
-    id_x <- match(0, x)
-    left <- x[1:id_x-1]
-    right <- x[id_x:length(x)]
-    vec <- c(right, left)
-    return(vec[!is.na(vec)])
+  stri <- strsplit(as.character(x), " ")
+  x <- as.numeric(stri[[1]])
+  id_x <- match(0, x)
+  left <- x[1:id_x-1]
+  right <- x[id_x:length(x)]
+  vec <- c(right, left)
+  return(vec[!is.na(vec)])
 }
 
 as.pairs <- function(x){
   y <- c(x[-1], x[1])
-  return(sets::as.set(Map(sets::set, x, y)))
+  return(as.set(Map(set, x, y)))
 }
 
 similarity2 <- function(x1, x2){
-  s1 <- sets::as.pairs(parse2(x1))
-  s2 <- sets::as.pairs(parse2(x2))
-  
-  return(length(sets::set_intersection(s1, s2)) / length(s1))
+  path1 <- parse2(x1)
+  path2 <- parse2(x2)
+  s1 <- as.pairs(path1)
+  s2 <- as.pairs(path2)
+    
+  return(length(set_intersection(s1, s2)) / length(s1))
 }
 
  
 for(p in problems){
-  df_temp <- df %>%
+  df %>%
     filter(optimizer != "optimal") %>%
     filter(problem == p) %>%
     mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
-    top_n(n=100) %>%
-    mutate(similarity = pmap_dbl(list(final_path, optimal_path), similarity2)) %>%
-    # mutate(similarity = simi(parse(final_path), parse(optimal_path))) %>%
-    select(c("problem", "optimizer", "quality", "similarity"))
+    write.csv(paste(p,".csv", sep=""), row.names = FALSE)
  
-  print(df_temp)
+}
+print("Done")
+```
+
+
+## ODziel TO
+
+
+```{r lala4}
+library(purrr)
+
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+parse2 <- function(x){
+  stri <- strsplit(as.character(x), " ")
+  x <- as.numeric(stri[[1]])
+  id_x <- match(0, x)
+  left <- x[1:id_x-1]
+  right <- x[id_x:length(x)]
+  vec <- c(right, left)
+  return(vec[!is.na(vec)])
+}
+
+as.pairs <- function(x){
+  y <- c(x[-1], x[1])
+  return(as.set(Map(set, x, y)))
+}
+
+similarity2 <- function(x1, x2){
+  path1 <- parse2(x1)
+  path2 <- parse2(x2)
+  s1 <- as.pairs(path1)
+  s2 <- as.pairs(path2)
+    
+  return(length(set_intersection(s1, s2)) / length(s1))
+}
+
+ 
+for(p in problems){
+  df_temp <-
+    read.csv(paste("new_", p, ".csv", sep="")) %>% 
+    as.tibble() %>%
+    filter(optimizer != "optimal") %>%
+    filter(problem == p) %>%
+    select(c("problem", "optimizer", "quality", "similarity"))
  
   plot_temp <- ggplot(df_temp, aes(x=quality, y=similarity, color=optimizer)) +
     geom_jitter(alpha=0.6) +
@@ -737,9 +785,8 @@ for(p in problems){
     scale_color_brewer(palette="Set2")
  
   print(plot_temp)
- 
-  # ggsave(sprintf("plots_res/final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
- 
+  print(paste("Done", p))
+  ggsave(sprintf("plots_res/final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
 }
 ```
 
