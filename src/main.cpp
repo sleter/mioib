@@ -47,6 +47,11 @@ size_t random_index(size_t from, size_t to)
     return distribution(gen);
 }
 
+const float random_float(){
+    std::uniform_real_distribution<float> distribution;
+    return distribution(gen);
+}
+
 struct optimization_header
 {
     std::string problem;
@@ -69,12 +74,12 @@ struct optimization_header
     }
 
     optimization_header(const std::string &problem, const uint32_t problem_size, const std::string &optimizer, const uint32_t optimal_cost, const path_t &optimal_path) : problem(problem),
-                                                                                                                                       optimizer(optimizer),
-                                                                                                                                       time_iterations(0),
-                                                                                                                                       problem_size(problem_size),
-                                                                                                                                       optimal_cost(optimal_cost),
-                                                                                                                                       optimal_path(optimal_path),
-                                                                                                                                       time_duration_ms(0) {}
+                                                                                                                                                                          optimizer(optimizer),
+                                                                                                                                                                          time_iterations(0),
+                                                                                                                                                                          problem_size(problem_size),
+                                                                                                                                                                          optimal_cost(optimal_cost),
+                                                                                                                                                                          optimal_path(optimal_path),
+                                                                                                                                                                          time_duration_ms(0) {}
 
     optimization_header(const std::string &problem, const std::string &optimizer) : problem(problem), optimizer(optimizer), time_iterations(0), time_duration_ms(0) {}
 
@@ -135,6 +140,11 @@ struct optimization_result
         ss << start_cost << ',' << final_cost << ',' << steps << ',' << seen_solutions << ',' << as_string(final_path);
 
         return ss.str();
+    }
+    
+    void best_solution(uint32_t cost, path_t &v){
+        final_cost = cost;
+        final_path = v;
     }
 
     static const std::string csv_header;
@@ -252,8 +262,11 @@ struct cost_matrix
         return cost;
     }
 
-    uint32_t evaluate_possible_cost(path_t &v, uint32_t cost_before, size_t x, size_t y) const
+    uint32_t evaluate_possible_cost(path_t &v, const uint32_t cost_before, size_t x, size_t y) const
     {
+        if(x == y) return cost_before;
+        if(y < x) return evaluate_possible_cost(v, cost_before, y, x);
+
         size_t x_prev = x - 1;
         if (x == 0) // Fallback to the vector end
             x_prev = v.size() - 1;
@@ -293,6 +306,8 @@ path_t random_vector(size_t size)
 template <typename T>
 void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
 {
+    if(from > to) std::swap(to, from);
+
     while (to > from)
     {
         std::swap(v[from], v[to]);
@@ -357,6 +372,112 @@ optimization_step greedy_optimizer_step(const cost_matrix &mat, path_t &v, const
     return result.update_cost(prev_cost);
 }
 
+std::pair<size_t, size_t> random_neighbour(path_t &v){
+    size_t from = random_index(0, v.size() - 1);
+    size_t to = from;
+
+    do
+    {
+        to = random_index(0, v.size() - 1);
+    } while (from == to);
+
+    if(from > to) std::swap(from, to);
+    return {from, to};
+}
+
+std::tuple<uint32_t, size_t, size_t> random_neighbour(const cost_matrix &mat, path_t &v, const uint32_t cost)
+{
+    auto neighbour = random_neighbour(v);
+    uint32_t next_cost = mat.evaluate_possible_cost(v, cost, neighbour.first, neighbour.second);
+    return {next_cost, neighbour.first, neighbour.second};
+}
+
+float mean_neighbour_cost(const cost_matrix &mat, size_t samples)
+{
+    uint64_t diffs = 0;
+
+    for (size_t i=0; i<samples; ++i)
+    {
+        auto v = random_vector(mat.problem_size);
+        auto cost = mat.compute_cost(v);
+        auto neighbour = random_neighbour(v);
+        auto next_cost = mat.evaluate_possible_cost(v, cost, neighbour.first, neighbour.second);
+
+        diffs += abs((long)cost - (long)next_cost);
+    }
+
+    return diffs / (float)samples;
+}
+
+auto tabu_optimizer()
+{
+    return [](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
+        optimization_result result(cost);
+
+        return result;    
+    };
+}
+
+auto simulated_anneling_optimizer(const float p, const float l_ratio, size_t max_no_change_iterations, float alpha)
+{
+    return [p, l_ratio, max_no_change_iterations, alpha](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
+        optimization_result result(cost);
+
+        float mean_next_cost = mean_neighbour_cost(mat, 10000);
+        const float c0 = (-(abs(mean_next_cost - cost))) / log(p);
+
+        uint32_t neighbourhood_size = (v.size() * (v.size() - 1)) / 2;
+        uint32_t L = static_cast<uint32_t>(round(neighbourhood_size * l_ratio));
+
+        uint32_t current_cost = cost;
+        result.final_cost = cost;
+
+        float temperature = c0;
+        size_t no_improvement_count = 0;
+        
+        while (true)
+        {
+            uint32_t step_start_cost = result.final_cost;
+            for (size_t j = 0; j < L; ++j)
+            {
+                auto next_solution = random_neighbour(mat, v, current_cost);
+                uint32_t next_cost = std::get<0>(next_solution);
+                size_t from = std::get<1>(next_solution);
+                size_t to = std::get<2>(next_solution);
+
+                if (next_cost <= current_cost)
+                {
+                    swap_with_rotation(v, from, to);
+                    current_cost = next_cost;
+                    if(current_cost < result.final_cost) result.best_solution(current_cost, v);
+                }
+                else
+                {
+                    float probability = exp(-((float)next_cost - (float)current_cost)/temperature);
+                    if(probability > random_float()){
+                        swap_with_rotation(v, from, to);
+                        current_cost = next_cost;
+                        if(current_cost < result.final_cost) result.best_solution(current_cost, v);
+                    }
+                }
+            }
+
+            temperature *= alpha;
+            if(current_cost < step_start_cost){
+                no_improvement_count = 0;
+            } else {
+                ++no_improvement_count;
+            }
+
+            if(no_improvement_count >= max_no_change_iterations && temperature < 0.01){
+                break;
+            }
+        }
+
+        return result;
+    };
+}
+
 auto local_search_optimizer(const std::function<optimization_step(const cost_matrix &mat, path_t &v, const uint32_t cost)> step)
 {
     return [step](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
@@ -415,17 +536,8 @@ optimization_step random_step(const cost_matrix &mat, path_t &v, const uint32_t 
 
 optimization_step random_walk_step(const cost_matrix &mat, path_t &v, const uint32_t prev_cost)
 {
-    size_t from = random_index(0, v.size() - 1);
-    size_t to = from;
-
-    do
-    {
-        to = random_index(0, v.size() - 1);
-    } while (from == to);
-
-    std::swap(v[from], v[to]);
-
-    return optimization_step(mat.compute_cost(v), 1);
+    auto neighbour = random_neighbour(v);
+    return optimization_step(mat.evaluate_possible_cost(v, prev_cost, neighbour.first, neighbour.second), 1);
 }
 
 optimization_result heuristic_optimizer(const cost_matrix &mat, path_t &v, const uint32_t cost)
@@ -536,7 +648,6 @@ public:
 
     void run_experiments(const cost_matrix &mat, std::tuple<std::string, u_int32_t, path_t> &&problem)
     {
-        // tsp_optimizer("random", false, random_optimizer)};
         long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
         long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
         long random_ms = std::max(steepest_ms, greedy_ms);
@@ -544,6 +655,9 @@ public:
         run_experiment(mat, problem, tsp_optimizer("heuristic", true, heuristic_optimizer));
         run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
         run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
+
+        run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.25, 10, 0.90)));
+
     }
 
     friend std::ostream &operator<<(std::ostream &ostream, const tsp &t)
@@ -617,7 +731,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 5)
     {
-        std::cout << "Usage: " << argv[0] << "n ms results.csv <file1>.tsp [<file2>.tsp ...]" << '\n';
+        std::cout << "Usage: " << argv[0] << " n ms results.csv <file1>.tsp [<file2>.tsp ...]" << '\n';
         return 0;
     }
 
