@@ -47,7 +47,8 @@ size_t random_index(size_t from, size_t to)
     return distribution(gen);
 }
 
-const float random_float(){
+const float random_float()
+{
     std::uniform_real_distribution<float> distribution;
     return distribution(gen);
 }
@@ -141,8 +142,9 @@ struct optimization_result
 
         return ss.str();
     }
-    
-    void best_solution(uint32_t cost, path_t &v){
+
+    void best_solution(uint32_t cost, path_t &v)
+    {
         final_cost = cost;
         final_path = v;
     }
@@ -264,8 +266,10 @@ struct cost_matrix
 
     uint32_t evaluate_possible_cost(path_t &v, const uint32_t cost_before, size_t x, size_t y) const
     {
-        if(x == y) return cost_before;
-        if(y < x) return evaluate_possible_cost(v, cost_before, y, x);
+        if (x == y)
+            return cost_before;
+        if (y < x)
+            return evaluate_possible_cost(v, cost_before, y, x);
 
         size_t x_prev = x - 1;
         if (x == 0) // Fallback to the vector end
@@ -306,7 +310,8 @@ path_t random_vector(size_t size)
 template <typename T>
 void swap_with_rotation(std::vector<T> &v, size_t from, size_t to)
 {
-    if(from > to) std::swap(to, from);
+    if (from > to)
+        std::swap(to, from);
 
     while (to > from)
     {
@@ -372,7 +377,8 @@ optimization_step greedy_optimizer_step(const cost_matrix &mat, path_t &v, const
     return result.update_cost(prev_cost);
 }
 
-std::pair<size_t, size_t> random_neighbour(path_t &v){
+std::pair<size_t, size_t> random_neighbour(path_t &v)
+{
     size_t from = random_index(0, v.size() - 1);
     size_t to = from;
 
@@ -381,7 +387,8 @@ std::pair<size_t, size_t> random_neighbour(path_t &v){
         to = random_index(0, v.size() - 1);
     } while (from == to);
 
-    if(from > to) std::swap(from, to);
+    if (from > to)
+        std::swap(from, to);
     return {from, to};
 }
 
@@ -396,7 +403,7 @@ float mean_neighbour_cost(const cost_matrix &mat, size_t samples)
 {
     uint64_t diffs = 0;
 
-    for (size_t i=0; i<samples; ++i)
+    for (size_t i = 0; i < samples; ++i)
     {
         auto v = random_vector(mat.problem_size);
         auto cost = mat.compute_cost(v);
@@ -409,12 +416,146 @@ float mean_neighbour_cost(const cost_matrix &mat, size_t samples)
     return diffs / (float)samples;
 }
 
-auto tabu_optimizer()
+struct tabu_elitar_member
 {
-    return [](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
-        optimization_result result(cost);
+    size_t from = 0;
+    size_t to = 0;
+    uint32_t cost = 0;
 
-        return result;    
+    tabu_elitar_member() : from(0), to(0), cost(0) {}
+
+    tabu_elitar_member(size_t from, size_t to, uint32_t cost) : from(std::min(from, to)), to(std::max(from, to)), cost(cost) {}
+
+    friend bool operator<(const tabu_elitar_member &left, const tabu_elitar_member &right) { return left.cost < right.cost; }
+
+    friend std::ostream &operator<<(std::ostream &ostream, const tabu_elitar_member &value)
+    {
+        ostream << "<(" << value.from << "," << value.to << ")," << value.cost << '>';
+        return ostream;
+    }
+};
+
+inline bool operator>(const tabu_elitar_member &left, const tabu_elitar_member &right) { return right < left; }
+
+void push_elitar_member(std::vector<tabu_elitar_member> &elitar_members, const size_t elitar_size, const size_t from, const size_t to, const uint32_t next_cost)
+{
+    if (elitar_members.size() < elitar_size)
+    {
+        elitar_members.emplace_back(from, to, next_cost);
+        std::push_heap(elitar_members.begin(), elitar_members.end());
+    }
+    else if (next_cost < elitar_members.front().cost)
+    {
+        std::pop_heap(elitar_members.begin(), elitar_members.end());
+        elitar_members.pop_back();
+
+        elitar_members.emplace_back(from, to, next_cost);
+        std::push_heap(elitar_members.begin(), elitar_members.end());
+    }
+}
+
+void sort_elitar_members(std::vector<tabu_elitar_member> &elitar_members)
+{
+    std::make_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
+    std::sort_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
+}
+
+void push_tabu_list(std::map<std::pair<size_t, size_t>, size_t> &tabu_list, size_t from, size_t to, size_t initial_cadence)
+{
+    auto key = std::make_pair(from, to);
+    if (tabu_list.count(key) == 0)
+    {
+        tabu_list.insert({key, initial_cadence});
+    }
+}
+
+void update_tabu_list(std::map<std::pair<size_t, size_t>, size_t> &tabu_list)
+{
+    for (auto it = tabu_list.begin(); it != tabu_list.end();)
+    {
+        if (it->second <= 1)
+        {
+            it = tabu_list.erase(it);
+        }
+        else
+        {
+            --it->second;
+            ++it;
+        }
+    }
+}
+
+const tabu_elitar_member find_best(std::vector<tabu_elitar_member> &elitar_members, std::map<std::pair<size_t, size_t>, size_t> &tabu_list)
+{
+    auto first_member = elitar_members.front();
+    while (elitar_members.size() > 0)
+    {
+        auto member = elitar_members.front();
+        if (tabu_list.count({member.from, member.to}) == 0)
+        {
+            return member;
+        }
+        else
+        {
+            std::pop_heap(elitar_members.begin(), elitar_members.end());
+            elitar_members.pop_back();
+        }
+    }
+    return first_member;
+}
+
+auto tabu_optimizer(size_t initial_cadence, size_t elitar_size, size_t max_no_change_iterations)
+{
+    return [initial_cadence, elitar_size, max_no_change_iterations](const cost_matrix &mat, path_t &v, const uint32_t cost) -> optimization_result {
+        optimization_result result(cost);
+        std::vector<tabu_elitar_member> elitar_members;
+        std::map<std::pair<size_t, size_t>, size_t> tabu_list;
+
+        elitar_members.reserve(elitar_size);
+        size_t no_improvement_count = 0;
+
+        while (true)
+        {
+            ++result.steps;
+            elitar_members.clear();
+            
+            for (size_t from = 0; from < v.size() - 1; ++from)
+            {
+                for (size_t to = from + 1; to < v.size(); ++to)
+                {
+                    uint32_t next_cost = mat.evaluate_possible_cost(v, cost, from, to);
+                    ++result.seen_solutions;
+                    push_elitar_member(elitar_members, elitar_size, from, to, next_cost);
+                }
+            }
+
+            std::make_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
+            auto front = elitar_members.front();
+            if (front.cost < result.final_cost)
+            {
+                // The best solution than we seen so far
+                swap_with_rotation(v, front.from, front.to);
+                result.best_solution(front.cost, v);
+
+                update_tabu_list(tabu_list);
+                push_tabu_list(tabu_list, front.from, front.to, initial_cadence);
+                no_improvement_count = 0;
+            }
+            else
+            {
+                front = find_best(elitar_members, tabu_list);
+
+                swap_with_rotation(v, front.from, front.to);
+                result.best_solution(front.cost, v);
+
+                update_tabu_list(tabu_list);
+                push_tabu_list(tabu_list, front.from, front.to, initial_cadence);
+                ++no_improvement_count;
+            }
+
+            if(no_improvement_count >= max_no_change_iterations) { return result; }
+
+        }
     };
 }
 
@@ -434,13 +575,15 @@ auto simulated_anneling_optimizer(const float p, const float l_ratio, size_t max
 
         float temperature = c0;
         size_t no_improvement_count = 0;
-        
+
         while (true)
         {
+            ++result.steps;
             uint32_t step_start_cost = result.final_cost;
             for (size_t j = 0; j < L; ++j)
             {
                 auto next_solution = random_neighbour(mat, v, current_cost);
+                ++result.seen_solutions;
                 uint32_t next_cost = std::get<0>(next_solution);
                 size_t from = std::get<1>(next_solution);
                 size_t to = std::get<2>(next_solution);
@@ -449,27 +592,34 @@ auto simulated_anneling_optimizer(const float p, const float l_ratio, size_t max
                 {
                     swap_with_rotation(v, from, to);
                     current_cost = next_cost;
-                    if(current_cost < result.final_cost) result.best_solution(current_cost, v);
+                    if (current_cost < result.final_cost)
+                        result.best_solution(current_cost, v);
                 }
                 else
                 {
-                    float probability = exp(-((float)next_cost - (float)current_cost)/temperature);
-                    if(probability > random_float()){
+                    float probability = exp(-((float)next_cost - (float)current_cost) / temperature);
+                    if (probability > random_float())
+                    {
                         swap_with_rotation(v, from, to);
                         current_cost = next_cost;
-                        if(current_cost < result.final_cost) result.best_solution(current_cost, v);
+                        if (current_cost < result.final_cost)
+                            result.best_solution(current_cost, v);
                     }
                 }
             }
 
             temperature *= alpha;
-            if(current_cost < step_start_cost){
+            if (current_cost < step_start_cost)
+            {
                 no_improvement_count = 0;
-            } else {
+            }
+            else
+            {
                 ++no_improvement_count;
             }
 
-            if(no_improvement_count >= max_no_change_iterations && temperature < 0.01){
+            if (no_improvement_count >= max_no_change_iterations && temperature < 0.01)
+            {
                 break;
             }
         }
@@ -648,16 +798,19 @@ public:
 
     void run_experiments(const cost_matrix &mat, std::tuple<std::string, u_int32_t, path_t> &&problem)
     {
-        long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
-        long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
-        long random_ms = std::max(steepest_ms, greedy_ms);
+        // long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
+        // long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
+        // long random_ms = std::max(steepest_ms, greedy_ms);
 
-        run_experiment(mat, problem, tsp_optimizer("heuristic", true, heuristic_optimizer));
-        run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
-        run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
+        // run_experiment(mat, problem, tsp_optimizer("heuristic", true, heuristic_optimizer));
+        // run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
+        // run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
 
-        run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.25, 10, 0.90)));
+        // run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.25, 10, 0.90)));
+        // run_experiment(mat, problem, tsp_optimizer("sa_1", true, simulated_anneling_optimizer(0.95, 0.5, 20, 0.90)));
+        // run_experiment(mat, problem, tsp_optimizer("sa_2", true, simulated_anneling_optimizer(0.95, 0.75, 10, 0.90)));
 
+        run_experiment(mat, problem, tsp_optimizer("tabu", true, tabu_optimizer(10, 10, 50)));
     }
 
     friend std::ostream &operator<<(std::ostream &ostream, const tsp &t)
