@@ -518,14 +518,15 @@ auto tabu_optimizer(size_t initial_cadence, size_t elitar_size, size_t max_no_ch
         {
             ++result.steps;
             elitar_members.clear();
+            uint32_t best_cost = result.final_cost; 
             
             for (size_t from = 0; from < v.size() - 1; ++from)
             {
                 for (size_t to = from + 1; to < v.size(); ++to)
                 {
                     uint32_t next_cost = mat.evaluate_possible_cost(v, cost, from, to);
-                    ++result.seen_solutions;
                     push_elitar_member(elitar_members, elitar_size, from, to, next_cost);
+                    ++result.seen_solutions;
                 }
             }
 
