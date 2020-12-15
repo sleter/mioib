@@ -454,19 +454,13 @@ void push_elitar_member(std::vector<tabu_elitar_member> &elitar_members, const s
     }
 }
 
-void sort_elitar_members(std::vector<tabu_elitar_member> &elitar_members)
-{
-    std::make_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
-    std::sort_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
-}
-
 void push_tabu_list(std::map<std::pair<size_t, size_t>, size_t> &tabu_list, size_t from, size_t to, size_t initial_cadence)
 {
+    if (from > to)
+        std::swap(from, to);
+
     auto key = std::make_pair(from, to);
-    if (tabu_list.count(key) == 0)
-    {
-        tabu_list.insert({key, initial_cadence});
-    }
+    tabu_list[key] = initial_cadence;
 }
 
 void update_tabu_list(std::map<std::pair<size_t, size_t>, size_t> &tabu_list)
@@ -485,23 +479,48 @@ void update_tabu_list(std::map<std::pair<size_t, size_t>, size_t> &tabu_list)
     }
 }
 
-const tabu_elitar_member find_best(std::vector<tabu_elitar_member> &elitar_members, std::map<std::pair<size_t, size_t>, size_t> &tabu_list)
+const tabu_elitar_member tabu_find_best(std ::vector<tabu_elitar_member> &elitar_members,
+                                        std::map<std::pair<size_t, size_t>, size_t> &tabu_list,
+                                        uint32_t best_cost)
 {
     auto first_member = elitar_members.front();
     while (elitar_members.size() > 0)
     {
         auto member = elitar_members.front();
-        if (tabu_list.count({member.from, member.to}) == 0)
+
+        if (member.cost < best_cost)
+        {
+            return member;
+        }
+        else if (tabu_list.count({member.from, member.to}) == 0)
         {
             return member;
         }
         else
         {
-            std::pop_heap(elitar_members.begin(), elitar_members.end());
+            std::pop_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
             elitar_members.pop_back();
         }
     }
     return first_member;
+}
+
+void tabu_generate(const cost_matrix &mat, path_t &v,
+                   std::vector<tabu_elitar_member> &elitar_members,
+                   optimization_result &result,
+                   size_t elitar_size,
+                   uint32_t cost)
+{
+    elitar_members.clear();
+    for (size_t from = 0; from < v.size() - 1; ++from)
+    {
+        for (size_t to = from + 1; to < v.size(); ++to)
+        {
+            uint32_t next_cost = mat.evaluate_possible_cost(v, cost, from, to);
+            push_elitar_member(elitar_members, elitar_size, from, to, next_cost);
+            ++result.seen_solutions;
+        }
+    }
 }
 
 auto tabu_optimizer(size_t initial_cadence, size_t elitar_size, size_t max_no_change_iterations)
@@ -513,49 +532,34 @@ auto tabu_optimizer(size_t initial_cadence, size_t elitar_size, size_t max_no_ch
 
         elitar_members.reserve(elitar_size);
         size_t no_improvement_count = 0;
+        uint32_t local_best_cost = result.final_cost;
 
         while (true)
         {
             ++result.steps;
-            elitar_members.clear();
-            uint32_t best_cost = result.final_cost; 
-            
-            for (size_t from = 0; from < v.size() - 1; ++from)
-            {
-                for (size_t to = from + 1; to < v.size(); ++to)
-                {
-                    uint32_t next_cost = mat.evaluate_possible_cost(v, cost, from, to);
-                    push_elitar_member(elitar_members, elitar_size, from, to, next_cost);
-                    ++result.seen_solutions;
-                }
-            }
-
+            tabu_generate(mat, v, elitar_members, result, elitar_size, local_best_cost);
             std::make_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
-            auto front = elitar_members.front();
-            if (front.cost < result.final_cost)
-            {
-                // The best solution than we seen so far
-                swap_with_rotation(v, front.from, front.to);
-                result.best_solution(front.cost, v);
+            auto local_best = tabu_find_best(elitar_members, tabu_list, result.final_cost);
+            local_best_cost = local_best.cost;
 
-                update_tabu_list(tabu_list);
-                push_tabu_list(tabu_list, front.from, front.to, initial_cadence);
+            swap_with_rotation(v, local_best.from, local_best.to);
+            if (local_best_cost < result.final_cost)
+            {
+                result.best_solution(local_best_cost, v);
                 no_improvement_count = 0;
             }
             else
             {
-                front = find_best(elitar_members, tabu_list);
-
-                swap_with_rotation(v, front.from, front.to);
-                result.best_solution(front.cost, v);
-
-                update_tabu_list(tabu_list);
-                push_tabu_list(tabu_list, front.from, front.to, initial_cadence);
                 ++no_improvement_count;
             }
 
-            if(no_improvement_count >= max_no_change_iterations) { return result; }
+            update_tabu_list(tabu_list);
+            push_tabu_list(tabu_list, local_best.from, local_best.to, initial_cadence);
 
+            if (no_improvement_count >= max_no_change_iterations)
+            {
+                return result;
+            }
         }
     };
 }
@@ -799,7 +803,7 @@ public:
 
     void run_experiments(const cost_matrix &mat, std::tuple<std::string, u_int32_t, path_t> &&problem)
     {
-        // long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
+        long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
         // long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
         // long random_ms = std::max(steepest_ms, greedy_ms);
 
@@ -811,7 +815,7 @@ public:
         // run_experiment(mat, problem, tsp_optimizer("sa_1", true, simulated_anneling_optimizer(0.95, 0.5, 20, 0.90)));
         // run_experiment(mat, problem, tsp_optimizer("sa_2", true, simulated_anneling_optimizer(0.95, 0.75, 10, 0.90)));
 
-        run_experiment(mat, problem, tsp_optimizer("tabu", true, tabu_optimizer(10, 10, 50)));
+        run_experiment(mat, problem, tsp_optimizer("tabu", true, tabu_optimizer(50, 50, 40)));
     }
 
     friend std::ostream &operator<<(std::ostream &ostream, const tsp &t)
