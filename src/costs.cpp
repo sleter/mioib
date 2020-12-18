@@ -76,7 +76,7 @@ const uint32_t &cost_matrix::operator[](std::pair<size_t, size_t> &&pair) const 
 uint32_t cost_matrix::compute_cost(path_t &v) const
 {
     uint32_t cost = mat[v[0]][v[v.size() - 1]];
-    for (int i = 1; i < v.size(); ++i)
+    for (size_t i = 1; i < v.size(); ++i)
     {
         cost += mat[v[i - 1]][v[i]];
     }

@@ -1,4 +1,4 @@
-#include "../include/results.hpp"
+#include "results.hpp"
 
 optimization_step &optimization_step::update_cost(uint32_t new_cost)
 {

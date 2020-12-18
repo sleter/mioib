@@ -21,6 +21,6 @@ std::string as_string(const path_t &vec);
 
 std::chrono::high_resolution_clock::time_point now();
 int64_t as_milliseconds(std::chrono::nanoseconds time);
-
+void swap_with_rotation(path_t &v, size_t from, size_t to);
 
 #endif

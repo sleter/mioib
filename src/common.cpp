@@ -1,4 +1,4 @@
-#include "../include/common.hpp"
+#include "common.hpp"
 
 std::string as_string(const path_t &vec)
 {
@@ -24,4 +24,16 @@ int64_t as_milliseconds(std::chrono::nanoseconds time)
     return std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
 }
 
+void swap_with_rotation(path_t &v, size_t from, size_t to)
+{
+    if (from > to)
+        std::swap(to, from);
+
+    while (to > from)
+    {
+        std::swap(v[from], v[to]);
+        ++from;
+        --to;
+    }
+}
 
