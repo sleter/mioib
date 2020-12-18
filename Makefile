@@ -1,8 +1,23 @@
-all:
-	g++ -O3 -std=c++17 -lstdc++fs -c src/main.cpp
-	mkdir -p bin
-	mv *.o bin/
-	g++ -o main bin/*.o
+CXX		  := g++
+CXX_FLAGS := -Wall -Wextra -std=c++17 -ggdb
+
+BIN		:= bin
+SRC		:= src
+INCLUDE	:= include
+LIB		:= lib
+
+LIBRARIES	:=
+EXECUTABLE	:= main
+
+
+all: $(BIN)/$(EXECUTABLE)
+
+run: clean all
+	clear
+	./$(BIN)/$(EXECUTABLE)
+
+$(BIN)/$(EXECUTABLE): $(SRC)/*.cpp
+	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)
 
 clean:
-	rm -f utils
+	-rm $(BIN)/*
