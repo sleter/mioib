@@ -38,33 +38,43 @@ df <- df %>% arrange(problem_size)
 df
 ```
 
-## Score
+```{r sse}
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+    library(plyr)
 
-<!-- # ```{r score2, fig.width=12, fig.height=6} -->
-<!-- #  -->
-<!-- # df_temp <- df %>% -->
-<!-- #   select(c("problem", "optimizer", "final_score")) %>% -->
-<!-- #   filter(problem != "pr1002" & problem != "pcb442") %>% -->
-<!-- #   summarySE(measurevar="final_score", groupvars=c("optimizer","problem")) -->
-<!-- #  -->
-<!-- #    -->
-<!-- # pd <- position_dodge(0.1) -->
-<!-- #  -->
-<!-- # plot_seen <- ggplot( -->
-<!-- #     df_temp, -->
-<!-- #     aes( -->
-<!-- #      x = problem, -->
-<!-- #      y = final_score, -->
-<!-- #      color = optimizer, -->
-<!-- #      group = optimizer -->
-<!-- #     )) + geom_errorbar(aes(ymin=final_score-se, ymax=final_score+se), colour="black", width=.1, position=pd) + -->
-<!-- #          geom_line(position=pd, alpha=0.4) + -->
-<!-- #          geom_point(position=pd, size=3, shape=21, fill="white") + -->
-<!-- #          theme_bw() -->
-<!-- #  -->
-<!-- # plot_seen -->
-<!-- #  -->
-<!-- # ``` -->
+    # New version of length which can handle NA's: if na.rm==T, don't count them
+    length2 <- function (x, na.rm=FALSE) {
+        if (na.rm) sum(!is.na(x))
+        else       length(x)
+    }
+
+    # This does the summary. For each group's data frame, return a vector with
+    # N, mean, and sd
+    datac <- ddply(data, groupvars, .drop=.drop,
+      .fun = function(xx, col) {
+        c(N    = length2(xx[[col]], na.rm=na.rm),
+          mean = mean   (xx[[col]], na.rm=na.rm),
+          sd   = sd     (xx[[col]], na.rm=na.rm)
+        )
+      },
+      measurevar
+    )
+
+    # Rename the "mean" column    
+    datac <- rename(datac, c("mean" = measurevar))
+
+    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+
+    # Confidence interval multiplier for standard error
+    # Calculate t-statistic for confidence interval: 
+    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+    datac$ci <- datac$se * ciMult
+
+    return(datac)
+}
+```
 
 ```{r score, fig.width=12, fig.height=6}
 
@@ -75,71 +85,14 @@ data_summary <- function(x) {
    return(c(y=m,ymin=ymin,ymax=ymax))
 }
 
-# boxi <- function(df_temp){
-#   
-#   # opti <- df_temp[df_temp$optimizer == "optimal",]$final_score
-#   # dfi <- data.frame(problems, rep(opti, each=length(problems)))
-#   
-#   # p <- ggplot() +
-#   #   geom_boxplot(
-#   #     data = df_temp,
-#   #     aes(
-#   #       factor(optimizer),
-#   #       final_score,
-#   #       fill=optimizer)) +
-#   #   # geom_line(data=dfi, aes(y=opti[1]), linetype="dotted", color="red") +
-#   #   xlab("Optimizer") +
-#   #   ylab("Score") +
-#   #   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1)) +
-#   #   theme_bw()
-#   
-#   p <- ggplot(
-#     data = df_temp,
-#     aes(
-#       factor(optimizer),
-#       final_score,
-#       fill=optimizer)) +
-#     geom_violin(
-#       trim=FALSE) +
-#     # geom_line(data=dfi, aes(y=opti[1]), linetype="dotted", color="red") +
-#     geom_boxplot(width=0.1, alpha=0.4) + 
-#     xlab("Optimizer") +
-#     scale_fill_brewer(palette="Blues") + theme_classic() +
-#     theme_bw()
-#     
-#   return(p)
-# }
-# 
-# for(p in problems){
-#   df_temp_R <- df %>% filter(problem == p & (optimizer == "random" | optimizer == "random_walk")) %>% select(c("optimizer", "final_score"))
-#   df_temp_nR <- df %>% filter(problem == p & (optimizer != "random" & optimizer != "random_walk")) %>% select(c("optimizer", "final_score"))
-#   
-#   p_boxplot_R <- boxi(df_temp_R)
-#   
-#   p_boxplot_nR <- boxi(df_temp_nR)
-#   
-#   p_comb <- plot_grid(p_boxplot_nR+ylab("Score"), p_boxplot_R+ylab(""), labels=c("1", "2"), nrow=1, ncol=2)
-#   print(p_comb)
-#   ggsave(sprintf("plots_res/alg_comp/violin/opt_comp_score_violin_%s.pdf", p), p_comb, width = 12, height = 6)
-# }
-
-# ggplot(data = df, aes(x=problem, y=final_score, fill=optimizer)) +
-#   stat_summary(geom = "bar", fun.y = mean, position = "dodge") +
-#   stat_summary(geom = "errorbar", fun.data = mean_se, position = "dodge", fun.args = list(mult = 100)) +
-#   xlab("Optimizer") + ylab("Score") +
-#   scale_fill_brewer(palette="Blues") +
-#   theme_classic() +
-#   theme_bw() +
-#   scale_y_log10()
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
 
 ```
 
 ## Quality
 ```{r quality, fig.width=12, fig.height=5}
-
-normalize <- function(x) {
-  return ((x - min(x)) / (max(x) - min(x)))
-}
 
 df_temp <- df %>%
   group_by(problem) %>%
@@ -150,12 +103,22 @@ df_temp <- df %>%
   # top_n(n=1, wt=-quality) #%>%
   # arrange(problem_size)
 
-# print(df_temp)
-
 # df_temp$quality <- normalize(df_temp$quality)
 
 df_temp <- df_temp %>%
   filter(optimizer != "optimal")
+
+# Add groups for facet wrap
+df_temp <- df_temp %>%
+  mutate(opt_group = case_when(
+    optimizer == "greedy" ~ 1,
+    optimizer == "steepest" ~ 1,
+    optimizer == "heuristic" ~ 1,
+    optimizer == "random" ~ 2,
+    optimizer == "random_walk" ~ 2
+  ))
+
+# print(df_temp)
 
 # df_temp$sd <- df_temp$sd * 3
 
@@ -186,12 +149,13 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, co
   ) +
   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
   # scale_y_log10() +
+  facet_wrap(~opt_group ,nrow=2, scales = "free") +
   labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_comb
 
-ggsave("plots_res/final/opt_comp_quality.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
+# ggsave("plots_res/final/opt_comp_quality.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
 
 ```
 
@@ -369,44 +333,6 @@ ggsave("plots_res/final/opt_comp_steps.pdf", plot_comb, width=7, height=5, devic
 ```
 
 ## Seen
-
-```{r sse}
-summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
-                      conf.interval=.95, .drop=TRUE) {
-    library(plyr)
-
-    # New version of length which can handle NA's: if na.rm==T, don't count them
-    length2 <- function (x, na.rm=FALSE) {
-        if (na.rm) sum(!is.na(x))
-        else       length(x)
-    }
-
-    # This does the summary. For each group's data frame, return a vector with
-    # N, mean, and sd
-    datac <- ddply(data, groupvars, .drop=.drop,
-      .fun = function(xx, col) {
-        c(N    = length2(xx[[col]], na.rm=na.rm),
-          mean = mean   (xx[[col]], na.rm=na.rm),
-          sd   = sd     (xx[[col]], na.rm=na.rm)
-        )
-      },
-      measurevar
-    )
-
-    # Rename the "mean" column    
-    datac <- rename(datac, c("mean" = measurevar))
-
-    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
-
-    # Confidence interval multiplier for standard error
-    # Calculate t-statistic for confidence interval: 
-    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
-    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
-    datac$ci <- datac$se * ciMult
-
-    return(datac)
-}
-```
 
 ```{r seen, fig.width=8, fig.height=5}
 
