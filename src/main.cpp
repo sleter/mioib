@@ -98,7 +98,7 @@ public:
         run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
         run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
 
-        run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.25, no_max_change, 0.90)));
+        run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.75, no_max_change, 0.90)));
         run_experiment(mat, problem, tsp_optimizer("tabu", true, tabu_optimizer(tabu_cadence, tabu_elitar_size, no_max_change)));
     }
 
