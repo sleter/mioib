@@ -41,7 +41,6 @@ df
 ```{r sse}
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
-    library(plyr)
 
     # New version of length which can handle NA's: if na.rm==T, don't count them
     length2 <- function (x, na.rm=FALSE) {
@@ -61,13 +60,13 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
       measurevar
     )
 
-    # Rename the "mean" column    
+    # Rename the "mean" column
     datac <- rename(datac, c("mean" = measurevar))
 
     datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
 
     # Confidence interval multiplier for standard error
-    # Calculate t-statistic for confidence interval: 
+    # Calculate t-statistic for confidence interval:
     # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
     ciMult <- qt(conf.interval/2 + .5, datac$N-1)
     datac$ci <- datac$se * ciMult
@@ -89,6 +88,11 @@ normalize <- function(x) {
   return ((x - min(x)) / (max(x) - min(x)))
 }
 
+
+scientific_10 <- function(x) {
+  parse(text=gsub("e", " %*% 10^", scales::scientific_format()(x)))
+}
+
 ```
 
 ## Quality
@@ -96,11 +100,13 @@ normalize <- function(x) {
 
 df_temp <- df %>%
   group_by(problem) %>%
-  mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
-  # select(c("problem", "optimizer", "quality")) %>%
-  summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) #%>%
-  # group_by(problem, problem_size, optimizer) %>%
-  # top_n(n=1, wt=-quality) #%>%
+  mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost))# %>%
+  # select(c("problem", "optimizer", "quality")) #%>%
+  
+df_temp <- df_temp %>%
+  # summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) #%>%
+  group_by(problem, problem_size, optimizer) %>%
+  top_n(n=1, wt=-quality) #%>%
   # arrange(problem_size)
 
 # df_temp$quality <- normalize(df_temp$quality)
@@ -114,6 +120,8 @@ df_temp <- df_temp %>%
     optimizer == "greedy" ~ 1,
     optimizer == "steepest" ~ 1,
     optimizer == "heuristic" ~ 1,
+    optimizer == "sa" ~ 1,
+    optimizer == "tabu" ~ 1,
     optimizer == "random" ~ 2,
     optimizer == "random_walk" ~ 2
   ))
@@ -138,7 +146,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, co
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
 
-  geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
+  # geom_errorbar(aes(ymin=quality-sd, ymax=quality+sd), width=.7, position=pd, color="black", size=.1) +
   geom_point(color = "black", size = 3.2, position=pd) +
   geom_point(aes(color=optimizer), size=3, position=pd) +
   geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
@@ -147,6 +155,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, co
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13), strip.text.x = element_blank())+
   # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
   # scale_y_log10() +
   facet_wrap(~opt_group ,nrow=2, scales = "free") +
@@ -155,7 +164,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, co
 
 plot_comb
 
-# ggsave("plots_res/final/opt_comp_quality.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
+# ggsave("plots_res_final/opt_comp_quality_min.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
 
 ```
 
@@ -165,10 +174,6 @@ plot_comb
 ```{r time, fig.width=12, fig.height=5}
 
 plots_vec <- vector('list', length(problems))
-
-scientific_10 <- function(x) {
-  parse(text=gsub("e", " %*% 10^", scales::scientific_format()(x)))
-}
 
 # i<-0
 # for(p in problems){
@@ -227,12 +232,13 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=time_ms, co
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
 
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
   labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_comb
 
-ggsave("plots_res/final/opt_comp_time.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
+ggsave("plots_res_final/opt_comp_time.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
 ```
 
 ## Efketywnosc w czasie
@@ -264,13 +270,13 @@ plot_steps <- ggplot(df_temp, aes(time_ms, quality, color=optimizer)) +
   scale_x_log10(label=scientific_10) +
   # theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
   # scale_x_continuous(label=scientific_10)
-
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
   labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_steps
 
-ggsave("plots_res/final/opt_comp_qual_time.pdf", plot_steps, width=7, height=5, device=cairo_pdf)
+ggsave("plots_res_final/opt_comp_qual_time.pdf", plot_steps, width=7, height=5, device=cairo_pdf)
 
 ```
 
@@ -297,22 +303,36 @@ ggsave("plots_res/final/opt_comp_qual_time.pdf", plot_steps, width=7, height=5, 
 # 
 # plot_steps
 
-pd <- position_dodge(0.1)
+pd <- position_dodge(0.5)
+
+# df %>%
+#   filter(optimizer == "tabu") %>%
+#   group_by(problem) %>%
+#   top_n(n=10, wt=steps) %>%
+#   select(c('steps', 'problem'))
 
 df_temp <- df %>%
   # select(c("problem", "optimizer", "steps")) %>%
-  filter(optimizer == "steepest" | optimizer == "greedy") %>%
+  filter(optimizer == "steepest" | optimizer == "greedy" | optimizer == "sa" | optimizer == "tabu") %>%
   # group_by(problem) %>%
-  summarySE(measurevar="steps", groupvars=c("problem", "problem_size","optimizer")) %>%
+  summarySE(measurevar="steps", groupvars=c("problem", "problem_size", "optimizer")) %>%
   arrange(problem_size)
 
-df_temp$optimizer <- toupper(substr(df_temp$optimizer, 0, 1))
+# df_temp$optimizer <- toupper(substr(df_temp$optimizer, 0, 1))
 # df_temp$sd <- df_temp$sd * 3
 
-# head(df_temp)
+# print(df_temp)
+
+t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=0, ymax=Inf)
 
 plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=steps, colour=optimizer, group=optimizer)) +
-  geom_errorbar(aes(ymin=steps-sd, ymax=steps+sd), width=.7, position=pd, color="black") +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=0,xmax=1.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=2.5,xmax=3.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=4.5,xmax=5.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
+  geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
+  
+  geom_errorbar(aes(ymin=steps-se, ymax=steps+se), width=.7, size=.7, position=pd, color="black") +
   geom_line(position=pd, linetype="dotdash", alpha=0.7) +
   geom_point(position=pd, color = "black", size = 3.2) +
   geom_point(aes(color=optimizer), size=3, position=pd) +
@@ -321,14 +341,17 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=steps, colo
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
-  theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   scale_y_log10(label=scientific_10) +
+  # scale_y_continuous(label=scientific_10) +
+  
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
   labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_comb
 
-ggsave("plots_res/final/opt_comp_steps.pdf", plot_comb, width=7, height=5, device=cairo_pdf)
+ggsave("plots_res_final/opt_comp_steps.pdf", plot_comb, width=7, height=5, device=cairo_pdf)
 
 ```
 
@@ -341,7 +364,9 @@ df_temp <- df %>%
   filter(optimizer != "optimal") %>%
   summarySE(measurevar="seen_solutions", groupvars=c("problem", "problem_size","optimizer"))
 
-pd <- position_dodge(0.5)
+pd <- position_dodge(0.6)
+
+t2.rect1 <- data.frame (xmin="greedy", xmax="heuristic", ymin=0, ymax=Inf)
 
 plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=seen_solutions, colour=reorder(problem, problem_size), group=optimizer)) +
 
@@ -351,7 +376,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=seen_soluti
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=6.5,xmax=7.5,inherit.aes = FALSE) +
   geom_rect(data=t2.rect1,aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax),fill="black",alpha=0.1,xmin=8.5,xmax=9.5,inherit.aes = FALSE) +
 
-  geom_errorbar(aes(ymin=seen_solutions-sd, ymax=seen_solutions+sd), width=.7, position=pd, color="black", size=.1) +
+  # geom_errorbar(aes(ymin=seen_solutions-sd, ymax=seen_solutions+sd), width=.7, position=pd, color="black", size=.1) +
   geom_point(color = "black", size = 3.2, position=pd) +
   geom_point(aes(color=optimizer), size=3, position=pd) +
   geom_line(aes(color=optimizer), linetype="dotdash", alpha=0.7, position=pd) +
@@ -360,7 +385,8 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=seen_soluti
     base_line_size = 1/10,
     base_rect_size = 1/10
   ) +
-  # theme(axis.text.x = element_text(angle = 10, vjust = 0.5, hjust=1)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
   scale_y_log10(label=scientific_10) +
   labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
@@ -381,7 +407,7 @@ plot_comb
 # 
 # plot_steps
 
-ggsave("plots_res/final/opt_comp_seen.pdf", plot_comb, width=12, height=8, device=cairo_pdf)
+ggsave("plots_res_final/opt_comp_seen.pdf", plot_comb, width=12, height=8, device=cairo_pdf)
 
 ```
 
@@ -393,7 +419,7 @@ ggsave("plots_res/final/opt_comp_seen.pdf", plot_comb, width=12, height=8, devic
 
 df_temp <- df %>%
   # filter(problem %in% selected_problems) %>%
-  filter(optimizer == "steepest" | optimizer == "greedy") %>%
+  filter(optimizer == "steepest" | optimizer == "greedy" | optimizer == "sa" | optimizer == "tabu") %>%
   select(c("problem", "problem_size", "optimizer", "start_cost", "final_cost"))
 
 for(p in problems){
@@ -427,6 +453,8 @@ df_temp <- df %>%
 #   gather(range, start_quality, -problem) %>%
 #   mutate(final_quality = start_quality, range = NULL)
 
+df_temp <- df_temp[sample(nrow(df_temp)),]
+
 plot_steps <- ggplot(df_temp, aes(start_quality, final_quality, color=optimizer)) +
   geom_jitter(alpha=0.5) +
   xlab("Jakość początkowa") +
@@ -439,12 +467,13 @@ plot_steps <- ggplot(df_temp, aes(start_quality, final_quality, color=optimizer)
     base_rect_size = 1/10
   ) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
   labs(color='Algorytm') +
   scale_color_brewer(palette="Set2")
 
 plot_steps
 
-ggsave("plots_res/final/start_vs_end.pdf", plot_steps, width=10, height=8, device=cairo_pdf)
+ggsave("plots_res_final/start_vs_end.pdf", plot_steps, width=10, height=8, device=cairo_pdf)
 
 ```
 
@@ -510,11 +539,12 @@ for(p in problems){
       base_line_size = 1/10,
       base_rect_size = 1/10
     ) +
+  theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
   scale_color_brewer(palette="Set2")
 
   print(plot_temp)
   
-  ggsave(sprintf("plots_res/final/all_mean_min/mean_min_score_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
+  ggsave(sprintf("plots_res_final/all_mean_min/mean_min_score_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
 }
 
 ```
@@ -553,12 +583,13 @@ for(p in problems){
       base_line_size = 1/10,
       base_rect_size = 1/10
     ) +
+    theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
     labs(color='Algorytm') +
     scale_color_brewer(palette="Set2")
 
   print(plot_temp)
 
-  ggsave(sprintf("plots_res/final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
+  ggsave(sprintf("plots_res_final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
 
 }
 
@@ -699,6 +730,8 @@ for(p in problems){
     filter(problem == p) %>%
     select(c("problem", "optimizer", "quality", "similarity"))
  
+  df_temp <- df_temp[sample(nrow(df_temp)),]
+  
   plot_temp <- ggplot(df_temp, aes(x=quality, y=similarity, color=optimizer)) +
     geom_jitter(alpha=0.6) +
     xlab("Jakość") +
@@ -707,12 +740,13 @@ for(p in problems){
       base_line_size = 1/10,
       base_rect_size = 1/10
     ) +
+    theme(axis.text=element_text(size=12),axis.title=element_text(size=13))+
     labs(color='Algorytm') +
     scale_color_brewer(palette="Set2")
  
   print(plot_temp)
   print(paste("Done", p))
-  ggsave(sprintf("plots_res/final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
+  ggsave(sprintf("plots_res_final/5/ex5_%s.pdf", p), plot_temp, width = 8, height = 4, device=cairo_pdf)
 }
 ```
 
