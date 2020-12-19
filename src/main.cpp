@@ -86,6 +86,10 @@ public:
 
     void run_experiments(const cost_matrix &mat, std::tuple<std::string, u_int32_t, path_t> &&problem)
     {
+        size_t no_max_change = std::max((size_t)10, mat.problem_size / 20);
+        size_t tabu_cadence = std::max((size_t)5, mat.problem_size / 4);
+        size_t tabu_elitar_size = std::max((size_t)5, mat.problem_size / 10);
+
         long steepest_ms = run_experiment(mat, problem, tsp_optimizer("steepest", true, local_search_optimizer(steepest_optimizer_step)));
         long greedy_ms = run_experiment(mat, problem, tsp_optimizer("greedy", true, local_search_optimizer(greedy_optimizer_step)));
         long random_ms = std::max(steepest_ms, greedy_ms);
@@ -94,11 +98,8 @@ public:
         run_experiment(mat, problem, tsp_optimizer("random", false, time_constrained_optimizer(random_ms, random_step)));
         run_experiment(mat, problem, tsp_optimizer("random_walk", true, time_constrained_optimizer(random_ms, random_walk_step)));
 
-        run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.25, 10, 0.90)));
-        // run_experiment(mat, problem, tsp_optimizer("sa_1", true, simulated_anneling_optimizer(0.95, 0.5, 20, 0.90)));
-        // run_experiment(mat, problem, tsp_optimizer("sa_2", true, simulated_anneling_optimizer(0.95, 0.75, 10, 0.90)));
-
-        run_experiment(mat, problem, tsp_optimizer("tabu", true, tabu_optimizer(10, 10, 10)));
+        run_experiment(mat, problem, tsp_optimizer("sa", true, simulated_anneling_optimizer(0.95, 0.25, no_max_change, 0.90)));
+        run_experiment(mat, problem, tsp_optimizer("tabu", true, tabu_optimizer(tabu_cadence, tabu_elitar_size, no_max_change)));
     }
 
     friend std::ostream &operator<<(std::ostream &ostream, const tsp &t)

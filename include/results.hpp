@@ -9,7 +9,7 @@ struct optimization_step
     uint32_t cost = 0;
 
     optimization_step &update_cost(uint32_t new_cost);
-    optimization_step(uint32_t cost, size_t seen_solutions = 0);
+    optimization_step(uint32_t cost = 0, size_t seen_solutions = 0);
 };
 
 struct optimization_header

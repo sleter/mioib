@@ -89,20 +89,36 @@ const tabu_elitar_member tabu_find_best(std ::vector<tabu_elitar_member> &elitar
     return first_member;
 }
 
+bool should_tabu_regenerate_elitars(const cost_matrix &mat, path_t &v,
+                                    std::vector<tabu_elitar_member> &elitar_members,
+                                    uint32_t cost)
+{
+    auto best_member = elitar_members.front();
+    auto possible_cost = mat.evaluate_possible_cost(v, cost, best_member.from, best_member.to);
+    float size_ratio = elitar_members.size() / (float)(elitar_members.capacity());
+
+    // Regenerate elitar list, if the best elitar is worst then the current solution
+    // Or elitar members has only 25% of thier size
+    return (possible_cost >= cost || size_ratio < 0.25);
+}
+
 void tabu_generate(const cost_matrix &mat, path_t &v,
                    std::vector<tabu_elitar_member> &elitar_members,
                    optimization_result &result,
                    size_t elitar_size,
                    uint32_t cost)
 {
-    elitar_members.clear();
-    for (size_t from = 0; from < v.size() - 1; ++from)
+    if (elitar_members.empty() || should_tabu_regenerate_elitars(mat, v, elitar_members, cost))
     {
-        for (size_t to = from + 1; to < v.size(); ++to)
+        elitar_members.clear();
+        for (size_t from = 0; from < v.size() - 1; ++from)
         {
-            uint32_t next_cost = mat.evaluate_possible_cost(v, cost, from, to);
-            push_elitar_member(elitar_members, elitar_size, from, to, next_cost);
-            ++result.seen_solutions;
+            for (size_t to = from + 1; to < v.size(); ++to)
+            {
+                uint32_t next_cost = mat.evaluate_possible_cost(v, cost, from, to);
+                push_elitar_member(elitar_members, elitar_size, from, to, next_cost);
+                ++result.seen_solutions;
+            }
         }
     }
 }
