@@ -57,13 +57,13 @@ void update_tabu_list(std::map<std::pair<size_t, size_t>, size_t> &tabu_list)
         }
         else
         {
-            --it->second;
+            --(it->second);
             ++it;
         }
     }
 }
 
-const tabu_elitar_member tabu_find_best(std ::vector<tabu_elitar_member> &elitar_members,
+const tabu_elitar_member tabu_find_best(std::vector<tabu_elitar_member> &elitar_members,
                                         std::map<std::pair<size_t, size_t>, size_t> &tabu_list,
                                         uint32_t best_cost)
 {
@@ -72,11 +72,7 @@ const tabu_elitar_member tabu_find_best(std ::vector<tabu_elitar_member> &elitar
     {
         auto member = elitar_members.front();
 
-        if (member.cost < best_cost)
-        {
-            return member;
-        }
-        else if (tabu_list.count({member.from, member.to}) == 0)
+        if (member.cost < best_cost || tabu_list.count({member.from, member.to}) == 0)
         {
             return member;
         }
