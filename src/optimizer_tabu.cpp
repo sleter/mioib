@@ -71,15 +71,12 @@ const tabu_elitar_member tabu_find_best(std::vector<tabu_elitar_member> &elitar_
     while (elitar_members.size() > 0)
     {
         auto member = elitar_members.front();
+        std::pop_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
+        elitar_members.pop_back();
 
         if (member.cost < best_cost || tabu_list.count({member.from, member.to}) == 0)
         {
             return member;
-        }
-        else
-        {
-            std::pop_heap(elitar_members.begin(), elitar_members.end(), std::greater<>{});
-            elitar_members.pop_back();
         }
     }
     return first_member;
@@ -139,6 +136,8 @@ optimizer_f tabu_optimizer(size_t initial_cadence, size_t elitar_size, size_t ma
             local_best_cost = local_best.cost;
 
             swap_with_rotation(v, local_best.from, local_best.to);
+            local_best_cost = mat.compute_cost(v);
+
             if (local_best_cost < result.final_cost)
             {
                 result.best_solution(local_best_cost, v);
