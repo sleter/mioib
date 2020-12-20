@@ -42,6 +42,7 @@ df
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
 
+    library(plyr)
     # New version of length which can handle NA's: if na.rm==T, don't count them
     length2 <- function (x, na.rm=FALSE) {
         if (na.rm) sum(!is.na(x))
@@ -95,6 +96,14 @@ scientific_10 <- function(x) {
 
 ```
 
+```{r eeee, fig.width=12, fig.height=6}
+
+df %>%
+  filter(optimizer == 'tabu') %>%
+  select(c('problem', 'optimal_cost', 'final_cost'))
+
+```
+
 ## Quality
 ```{r quality, fig.width=12, fig.height=5}
 
@@ -106,7 +115,7 @@ df_temp <- df %>%
 df_temp <- df_temp %>%
   # summarySE(measurevar="quality", groupvars=c("problem", "problem_size","optimizer")) #%>%
   group_by(problem, problem_size, optimizer) %>%
-  top_n(n=1, wt=-quality) #%>%
+  top_n(n=1, wt=quality) #%>%
   # arrange(problem_size)
 
 # df_temp$quality <- normalize(df_temp$quality)
@@ -164,7 +173,7 @@ plot_comb <- ggplot(df_temp, aes(x=reorder(problem, problem_size), y=quality, co
 
 plot_comb
 
-# ggsave("plots_res_final/opt_comp_quality_min.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
+ggsave("plots_res_final/opt_comp_quality_best.pdf", plot_comb, width=12, height=5, device=cairo_pdf)
 
 ```
 
@@ -247,6 +256,7 @@ ggsave("plots_res_final/opt_comp_time.pdf", plot_comb, width=12, height=5, devic
 
 df_temp <- df %>%
   # filter(problem != "pr1002" | problem != "pcb442") %>%
+  filter(optimizer != "optimal") %>%
   transform(time_ms =  time_duration_ms/time_iterations) %>%
   group_by(problem) %>%
   mutate(quality = normalize((optimal_cost-final_cost)/optimal_cost)) %>%
